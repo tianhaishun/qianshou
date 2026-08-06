@@ -1,0 +1,38 @@
+name: Qianshou
+options:
+  bundleIdPrefix: com.qianshou
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: NO
+targets:
+  Qianshou:
+    type: application
+    platform: macOS
+    sources:
+      - Qianshou
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qianshou.app
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: 千手
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+    entitlements:
+      path: Qianshou/Support/Qianshou.entitlements
+      properties: {}
+  QianshouTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    dependencies:
+      - target: Qianshou
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

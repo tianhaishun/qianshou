@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Xcode 生成产物（工程由 xcodegen 生成，只提交 project.yml）
+Qianshou.xcodeproj/
+build/
+DerivedData/
+
+# 真机方案遗留（WebDriverAgent 克隆仓库，120MB+，不入库）
+vendor/
+
+# 运行时产物
+*.log
+# Xcode 测试覆盖率
+*.profraw
