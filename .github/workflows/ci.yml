@@ -7,7 +7,9 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: macos-latest
+    # macos-15 比 macos-latest(26) 的 runner 资源充裕，免费账号调度成功率更高；
+    # Xcode 16 SDK 足够编译（部署目标 macOS 14）
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
