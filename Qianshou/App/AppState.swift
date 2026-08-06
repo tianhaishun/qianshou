@@ -35,6 +35,11 @@ final class AppState: ObservableObject {
     @Published var savedSequences: [ClickSequence] = []
     @Published var lastRecordedSequence: ClickSequence?
 
+    // MARK: - 全局热键
+
+    private let hotKey = GlobalHotKey()
+    @Published var hotKeyEnabled = false
+
     var simulatorWindow: WindowLocator.SimulatorWindow? { windowLocator.window }
 
     // MARK: - 设备列表
@@ -264,6 +269,25 @@ final class AppState: ObservableObject {
     func deleteSequence(_ sequence: ClickSequence) {
         SequenceStore.delete(sequence)
         loadSequences()
+    }
+
+    // MARK: - 全局热键
+
+    /// 安装/卸载 F8 热键（任意 App 下按 F8 开始/停止连点）
+    func setHotKey(enabled: Bool) {
+        hotKeyEnabled = enabled
+        if enabled {
+            hotKey.install { [weak self] in
+                guard let self else { return }
+                if self.clickEngine.isRunning {
+                    self.stopClicking()
+                } else if !self.clickPoints.isEmpty {
+                    self.startClicking()
+                }
+            }
+        } else {
+            hotKey.uninstall()
+        }
     }
 
     /// 让 Simulator 窗口到前台（点击注入的前置条件）

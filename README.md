@@ -1,71 +1,97 @@
-# 千手 (Qianshou)
+<div align="center">
 
-macOS 原生工具：**iOS 模拟器连点 / 录制回放 / 实时镜像**。
+# 千手 · Qianshou
 
-在 MacBook 上通过镜像画面操作 iOS 模拟器 —— 点击镜像添加连点点位、录制点击序列、按时间偏移精确回放。模拟器把 macOS 鼠标事件转换为触摸事件，因此全程本地实现，无需 USB 连接、签名或任何远程协议。
+**Drive your iOS Simulator from a live mirror — auto-click, record, and replay operations on your Mac, with zero setup.**
 
-## 功能
+<img src="docs/demo.gif" alt="Qianshou demo" width="720">
 
-- **实时镜像**：ScreenCaptureKit 窗口捕获，60fps，支持缩放（1x-4x）与拖拽平移
-- **连点**：点击镜像画面添加点位（相对坐标），配置点间隔/轮间隔/循环轮数，注入到模拟器
-- **录制回放**：CGEventTap 全局监听模拟器窗口内的点击，记录坐标 + 时间偏移；序列自动保存为 JSON，可回放
-- **模拟器管理**：列表/启动/关机，2s 自动刷新
+![CI](https://github.com/tianhaishun/qianshou/actions/workflows/ci.yml/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 技术要点
+</div>
 
-| 模块 | 实现 |
-|---|---|
-| 镜像 | `ScreenCaptureKit` SCStream 窗口捕获 → CGImage 帧 |
-| 点击注入 | `CGEvent`（leftMouseDown/Up）→ 模拟器窗口内容区坐标 |
-| 录制 | `CGEvent.tapCreate`(.cghidEventTap) 监听 + 内容区过滤 |
-| 坐标换算 | 视图 → 帧 → 内容区相对（0-1）→ 屏幕；纯函数 `CoordinateMapper`，含缩放/平移 |
-| 序列存储 | JSON → `~/Library/Application Support/QianShou/sequences/` |
+---
 
-关键设计：点位用**内容区相对坐标**（0-1），模拟器窗口移动/缩放后依然准确；每次注入前取最新窗口 rect。
+## Why Qianshou?
 
-## 构建与运行
+The iOS Simulator turns macOS mouse events into touch events. Qianshou exploits this: **click injection is just a `CGEvent`** — no USB pairing, no code signing, no WebDriverAgent, no remote protocols. A native macOS app, zero third-party dependencies, ~1,700 lines of Swift.
+
+- **Live mirror** — ScreenCaptureKit window capture at 60fps, zoom 1–4×, drag to pan
+- **Auto-click** — click on the mirrored screen to place points, configure interval/loops, inject clicks into the simulator
+- **Record & replay** — a global event tap records your clicks *and drags* with precise timing; sequences persist as JSON and replay exactly as recorded
+- **Simulator management** — list, boot, shutdown from the sidebar, 2s auto-refresh
+
+## Quick start
+
+Requires macOS 14+, Xcode 15+ (for building), and an iOS Simulator.
 
 ```bash
 brew install xcodegen
 xcodegen generate
 xcodebuild -project Qianshou.xcodeproj -scheme Qianshou -configuration Debug build
-open build/Debug/Qianshou.app   # 或 DerivedData 产物
+open build/Debug/Qianshou.app   # or the DerivedData product
 ```
 
-首次运行需授权：
-1. **屏幕录制**（镜像画面）
-2. **辅助功能**（点击注入与录制监听）
+**Or download the latest release** from [Releases](https://github.com/tianhaishun/qianshou/releases) (coming soon).
 
-## 使用
+### First-run permissions
 
-1. 启动模拟器（`xcrun simctl boot <udid>` 或 App 侧栏右键启动），保持窗口不被遮挡
-2. 镜像区显示模拟器画面后，**点击画面添加点位**（蓝色编号圆点）
-3. 配置间隔与轮数，点「开始连点」
-4. 「录制」模式：开始录制 → 在模拟器窗口上操作 → 停止录制（自动保存）→ 点「回放上次录制」
+Two system permissions are needed (shown live in the sidebar):
 
-## 开发
+| Permission | Purpose |
+|---|---|
+| **Screen Recording** | capture the simulator window for the mirror |
+| **Accessibility** | inject clicks and listen for recording |
+
+## Usage
+
+1. **Boot a simulator** (right-click a device in the sidebar → 启动, or `xcrun simctl boot <udid>`) and keep its window visible
+2. **Place points** — click on the mirrored screen; numbered markers appear (blue circle, red while being clicked)
+3. **Auto-click** — set per-point interval, per-round interval, and round count, then hit **开始连点**
+4. **Record & replay** — switch to 录制 mode, record your clicks/drags on the simulator window, stop, then hit **回放上次录制**. Sequences are auto-saved to `~/Library/Application Support/QianShou/sequences/` and survive restarts
+
+### Global hotkey
+
+Toggle **F8 启停连点** in the sidebar to start/stop auto-clicking from any app (requires Accessibility).
+
+## Design notes
+
+- **Coordinates are content-area-relative (0–1)**, so points stay accurate when you move or resize the simulator window; the window rect is re-fetched every second while mirroring and re-calibrated per frame (Retina scale auto-detected)
+- The coordinate pipeline (view → frame → content → screen) is pure functions in `CoordinateMapper` with unit tests, including zoom/pan
+- Mirroring, injection, and recording each stop gracefully when the simulator window leaves the screen — no blind clicks into other apps
+
+## Development
 
 ```bash
-xcodegen generate          # 新增/删除文件后必须重新生成
-xcodebuild ... test        # 单元测试（CoordinateMapper、序列 JSON）
+xcodegen generate        # required after adding/removing files
+xcodebuild -project Qianshou.xcodeproj -scheme Qianshou -destination 'platform=macOS' test
 ```
 
-调试日志：`/tmp/qianshou_debug.log`
+Debug log: `/tmp/qianshou_debug.log`
 
-## 目录结构
+## Roadmap
 
-```
-Qianshou/
-├── App/          QianShouApp, AppState（全局状态）
-├── Models/       SimulatorDevice, ClickPoint, ClickSequence
-├── Services/     SimulatorManager, WindowLocator, MirrorCapture,
-│                 CoordinateMapper, Injector, ClickEngine, Recorder, Player, SequenceStore
-├── ViewModels/
-├── Views/        Sidebar, Mirror（手势层+点位标记）, ControlPanel（连点/录制）
-└── Support/      entitlements
-Tests/            CoordinateMapperTests, ClickSequenceTests
-Scripts/          bootstrap.sh（venv+pymobiledevice3，真机方案遗留）
-vendor/           WebDriverAgent（真机方案遗留，当前不使用）
-```
+- [x] Auto-click engine
+- [x] Record & replay (clicks + drags, JSON persistence)
+- [x] Zoom / pan mirror
+- [x] Global hotkey (F8)
+- [ ] Sequence editor (drag points, edit timing)
+- [ ] Command-line mode (`qianshou run sequence.json`)
+- [ ] Recording screen recording of sessions
 
-> 注：`Scripts/`、`vendor/`、pymobiledevice3 是早期「真机 + WebDriverAgent」方案的遗留物，当前模拟器方案不依赖它们，可随时清理。
+## FAQ
+
+**Does this work with a physical iPhone?** Not yet — the current focus is the Simulator. A real-device path (WebDriverAgent-based) was prototyped and intentionally shelved; see `git log` for the story.
+
+**Why not Appium / WebDriverAgent / idb?** Those are powerful but heavyweight: install agents, code signing, test runners. Qianshou is the opposite end: install, run, click. It's for the 90% of cases where you just need repeatable taps.
+
+**Is the window occlusion a problem?** During auto-click the simulator window must stay visible (keep it frontmost). If the window leaves the screen, clicking stops automatically.
+
+## Contributing
+
+PRs welcome. Small codebase (~1,700 lines), pure functions for the hard parts, and a debug log that writes to `/tmp/qianshou_debug.log`. Please keep the zero-dependency rule.
+
+## License
+
+[MIT](LICENSE)

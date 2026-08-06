@@ -30,13 +30,28 @@ final class Player: ObservableObject {
                 try? await Task.sleep(until: target, clock: .continuous)
                 guard !Task.isCancelled,
                       let rect = contentRect() else { break }
-                let screenPoint = CGPoint(
-                    x: rect.minX + rect.width * point.x,
-                    y: rect.minY + rect.height * point.y
-                )
-                await Injector.click(at: screenPoint)
+
+                switch point.kind {
+                case .click:
+                    let screenPoint = CGPoint(
+                        x: rect.minX + rect.width * point.x,
+                        y: rect.minY + rect.height * point.y
+                    )
+                    await Injector.click(at: screenPoint)
+                case .drag:
+                    let startPt = CGPoint(
+                        x: rect.minX + rect.width * point.x,
+                        y: rect.minY + rect.height * point.y
+                    )
+                    let endPt = CGPoint(
+                        x: rect.minX + rect.width * (point.endX ?? point.x),
+                        y: rect.minY + rect.height * (point.endY ?? point.y)
+                    )
+                    await Injector.drag(from: startPt, to: endPt,
+                                        durationMs: point.durationMs ?? 200)
+                }
                 self?.progressMs = point.offsetMs
-                DebugLog.log("[Player] replayed @\(point.offsetMs)ms rel(\(point.x), \(point.y))")
+                DebugLog.log("[Player] replayed @\(point.offsetMs)ms kind=\(point.kind.rawValue)")
             }
             self?.isPlaying = false
         }

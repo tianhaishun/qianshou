@@ -60,7 +60,7 @@ private struct PermissionStatusBar: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             PermissionRow(ok: appState.screenCapturePermission,
                           label: "屏幕录制",
                           hint: "镜像画面所需",
@@ -69,6 +69,20 @@ private struct PermissionStatusBar: View {
                           label: "辅助功能",
                           hint: "点击注入所需",
                           systemImage: "cursorarrow.click")
+
+            Toggle(isOn: Binding(
+                get: { appState.hotKeyEnabled },
+                set: { appState.setHotKey(enabled: $0) }
+            )) {
+                HStack(spacing: 6) {
+                    Image(systemName: "keyboard")
+                        .foregroundStyle(.secondary)
+                    Text("F8 启停连点")
+                        .font(.caption)
+                }
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)

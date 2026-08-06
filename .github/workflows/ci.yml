@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build
+        run: xcodebuild -project Qianshou.xcodeproj -scheme Qianshou -configuration Debug -destination 'platform=macOS' build
+
+      - name: Test
+        run: xcodebuild -project Qianshou.xcodeproj -scheme Qianshou -destination 'platform=macOS' test

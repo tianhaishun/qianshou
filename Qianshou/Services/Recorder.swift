@@ -18,6 +18,16 @@ final class Recorder: ObservableObject {
     private var points: [SequencePoint] = []
     /// 内容区屏幕 rect 提供者（录制前取最新）
     private var contentRectProvider: (() -> CGRect?)?
+    /// 进行中的拖拽（mouseDown 后待 mouseUp 定型）
+    private struct PendingDrag {
+        let startPoint: CGPoint     // 内容区相对坐标
+        let startTime: CFAbsoluteTime
+        var lastPoint: CGPoint
+        var moved = false
+    }
+    private var pendingDrag: PendingDrag?
+    /// 判定「移动 = 拖拽」的阈值（内容区相对坐标）
+    private let dragThreshold: CGFloat = 0.01
 
     private static var activeRecorder: Recorder?
 
@@ -33,6 +43,8 @@ final class Recorder: ObservableObject {
         Self.activeRecorder = self
 
         let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
+            | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
+            | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
@@ -51,11 +63,11 @@ final class Recorder: ObservableObject {
                 // 事件在 UI 线程注入则主线程直调，否则派发回主线程
                 if Thread.isMainThread {
                     MainActor.assumeIsolated {
-                        recorder.handleEvent(event)
+                        recorder.handleEvent(event, type: type)
                     }
                 } else {
                     DispatchQueue.main.async {
-                        recorder.handleEvent(event)
+                        recorder.handleEvent(event, type: type)
                     }
                 }
                 return Unmanaged.passUnretained(event)
@@ -83,6 +95,7 @@ final class Recorder: ObservableObject {
         guard isRecording else { return }
         DebugLog.log("[Recorder] tap disabled by system, stopping recording")
         stopTap()
+        pendingDrag = nil
         isRecording = false
         recordedCount = 0
         points = []
@@ -95,6 +108,7 @@ final class Recorder: ObservableObject {
     func stopRecording(name: String = "录制 \(DateFormatter.sequenceName.string(from: Date()))") -> ClickSequence? {
         guard isRecording else { return nil }
         stopTap()
+        pendingDrag = nil
         isRecording = false
         contentRectProvider = nil
         Self.activeRecorder = nil
@@ -105,6 +119,7 @@ final class Recorder: ObservableObject {
     func cancelRecording() {
         guard isRecording else { return }
         stopTap()
+        pendingDrag = nil
         isRecording = false
         points = []
         contentRectProvider = nil
@@ -123,20 +138,60 @@ final class Recorder: ObservableObject {
         runLoopSource = nil
     }
 
-    /// tap 回调（主线程）：记录内容区内的点击
-    private func handleEvent(_ event: CGEvent) {
+    /// tap 回调（主线程）：记录内容区内的点击与拖动
+    private func handleEvent(_ event: CGEvent, type: CGEventType) {
         guard isRecording, let startTime, let rect = contentRectProvider?() else { return }
         let p = event.location
-        guard rect.contains(p) else { return }
+
+        switch type {
+        case .leftMouseDown:
+            // 内容区内按下 → 拖拽候选
+            guard let rel = toRelative(p, rect: rect) else { return }
+            pendingDrag = PendingDrag(startPoint: rel, startTime: CFAbsoluteTimeGetCurrent(), lastPoint: rel)
+        case .leftMouseDragged:
+            guard var drag = pendingDrag, let rel = toRelative(p, rect: rect) else { return }
+            if abs(rel.x - drag.lastPoint.x) > dragThreshold || abs(rel.y - drag.lastPoint.y) > dragThreshold {
+                drag.moved = true
+                drag.lastPoint = rel
+                pendingDrag = drag
+            }
+        case .leftMouseUp:
+            defer { pendingDrag = nil }
+            guard let drag = pendingDrag, let endRel = toRelative(p, rect: rect) else { return }
+            let offsetMs = Int((drag.startTime - startTime) * 1000)
+            if drag.moved {
+                // 拖动：起点 → 终点
+                let durationMs = max(Int((CFAbsoluteTimeGetCurrent() - drag.startTime) * 1000), 100)
+                points.append(SequencePoint(
+                    kind: .drag,
+                    x: Double(drag.startPoint.x), y: Double(drag.startPoint.y),
+                    offsetMs: offsetMs,
+                    endX: Double(endRel.x), endY: Double(endRel.y),
+                    durationMs: durationMs
+                ))
+            } else {
+                // 纯点击
+                points.append(SequencePoint(
+                    x: Double(drag.startPoint.x), y: Double(drag.startPoint.y),
+                    offsetMs: offsetMs
+                ))
+            }
+            recordedCount = points.count
+            DebugLog.log("[Recorder] recorded \(points.count) @\(offsetMs)ms kind=\(points.last?.kind.rawValue ?? "?")")
+        default:
+            break
+        }
+    }
+
+    /// 屏幕坐标 → 内容区相对坐标（范围校验）
+    private func toRelative(_ p: CGPoint, rect: CGRect) -> CGPoint? {
+        guard rect.contains(p) else { return nil }
         let rel = CGPoint(
             x: (p.x - rect.minX) / rect.width,
             y: (p.y - rect.minY) / rect.height
         )
-        guard rel.x >= 0, rel.x <= 1, rel.y >= 0, rel.y <= 1 else { return }
-        let offsetMs = Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000)
-        points.append(SequencePoint(x: Double(rel.x), y: Double(rel.y), offsetMs: offsetMs))
-        recordedCount = points.count
-        DebugLog.log("[Recorder] recorded \(points.count): rel(\(rel.x), \(rel.y)) @\(offsetMs)ms")
+        guard rel.x >= 0, rel.x <= 1, rel.y >= 0, rel.y <= 1 else { return nil }
+        return rel
     }
 }
 
