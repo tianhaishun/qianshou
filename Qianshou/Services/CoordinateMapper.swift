@@ -61,8 +61,9 @@ enum CoordinateMapper {
         return CGPoint(x: draw.minX + fx * draw.width, y: draw.minY + fy * draw.height)
     }
 
-    /// 点位标记的屏幕固定半径（放大时保持视觉尺寸不变）
+    /// 点位标记半径：固定屏幕尺寸，不随缩放变化
+    /// （放大画面后标记不变，仍精确指示同一屏幕位置）
     static func markerRadius(base: CGFloat, zoom: CGFloat) -> CGFloat {
-        base / max(zoom, 1)
+        base
     }
 }

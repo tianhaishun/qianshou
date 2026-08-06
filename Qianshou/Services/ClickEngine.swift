@@ -35,7 +35,7 @@ final class ClickEngine: ObservableObject {
         totalLoops = loops
 
         onActivateSimulator()
-        // 等待窗口激活完成
+        // 等待窗口激活完成（仅第一轮开始前）
         let activationDelay: UInt64 = 300_000_000
 
         task = Task { [weak self] in
@@ -43,10 +43,13 @@ final class ClickEngine: ObservableObject {
             while !Task.isCancelled {
                 loop += 1
                 self?.currentLoop = loop
+                // 激活延迟只应用一次（首轮），不拖慢每点间隔
+                if loop == 1 {
+                    try? await Task.sleep(nanoseconds: activationDelay)
+                }
                 for (i, point) in points.enumerated() {
                     guard !Task.isCancelled else { break }
                     self?.currentPointIndex = i
-                    try? await Task.sleep(nanoseconds: activationDelay)
                     guard let rect = contentRect() else {
                         self?.stop()
                         return
@@ -55,7 +58,7 @@ final class ClickEngine: ObservableObject {
                         x: rect.minX + rect.width * point.x,
                         y: rect.minY + rect.height * point.y
                     )
-                    Injector.click(at: screenPoint)
+                    await Injector.click(at: screenPoint)
                     if i < points.count - 1 {
                         try? await Task.sleep(nanoseconds: UInt64(intervalMs) * 1_000_000)
                     }

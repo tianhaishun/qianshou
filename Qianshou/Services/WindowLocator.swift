@@ -5,7 +5,9 @@ import Foundation
 ///
 /// 注入点击与镜像捕获都基于同一个内容区 rect，保证两边坐标一一对应。
 /// 内容区高度通过「窗口高 - 标题栏高」自校准：首次捕获拿到画面像素尺寸后，
-/// 调用 `calibrate(contentPixelSize:scaleFactor:)` 修正标题栏高度估算误差。
+/// 调用 `calibrate(contentPixelSize:)` 修正标题栏高度估算误差。
+///
+/// 多设备支持：`refresh(preferredTitle:)` 优先匹配指定设备名（窗口 title = 设备名）。
 final class WindowLocator {
 
     struct SimulatorWindow: Equatable {
@@ -15,8 +17,8 @@ final class WindowLocator {
         let title: String
         /// 内容区 rect（去掉标题栏/边框），屏幕坐标 pt
         var contentRect: CGRect
-        /// 标题栏+边框高度估算值（pt）
-        var topInset: CGFloat = 28
+        /// 标题栏+边框高度（pt）
+        var topInset: CGFloat
     }
 
     private(set) var window: SimulatorWindow?
@@ -24,13 +26,15 @@ final class WindowLocator {
     /// 标题栏高度估算值（pt），首次捕获后用 calibrate 修正
     private var estimatedTopInset: CGFloat = 28
 
-    /// 在屏幕可见窗口里找 Simulator 主窗口（owner == "Simulator" 且非辅助面板）
-    func refresh() {
+    /// 在屏幕可见窗口里找 Simulator 主窗口
+    /// - Parameter preferredTitle: 优先匹配的窗口标题（设备名），如 "iPhone 17 Pro"
+    func refresh(preferredTitle: String? = nil) {
         let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let info = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
             window = nil
             return
         }
+        var fallback: SimulatorWindow?
         for w in info {
             let owner = w[kCGWindowOwnerName as String] as? String ?? ""
             let layer = w[kCGWindowLayer as String] as? Int ?? 0
@@ -41,15 +45,21 @@ final class WindowLocator {
                   let rect = CGRect(dictionaryRepresentation: dict) else { continue }
             // 跳过名字为空的辅助面板；主窗口名形如 "iPhone 17 Pro"
             guard !title.isEmpty else { continue }
-            window = SimulatorWindow(
+
+            let candidate = SimulatorWindow(
                 windowID: CGWindowID(id),
                 frame: rect,
                 title: title,
-                contentRect: rect.insetBy(dx: 0, dy: 0).withTopInset(estimatedTopInset)
+                contentRect: rect.insetBy(dx: 0, dy: 0).withTopInset(estimatedTopInset),
+                topInset: estimatedTopInset
             )
-            return
+            if let preferredTitle, title.contains(preferredTitle) {
+                window = candidate
+                return
+            }
+            fallback = fallback ?? candidate
         }
-        window = nil
+        window = fallback
     }
 
     /// 内容区在捕获帧（窗口全图）内的 rect，归一化 0...1
@@ -67,11 +77,16 @@ final class WindowLocator {
         return CGRect(x: x, y: y, width: w, height: h)
     }
 
-    /// 用实际捕获帧尺寸校准内容区（捕获分辨率 / scale = 内容区 pt 尺寸）
-    func calibrate(contentPixelSize: CGSize, scaleFactor: CGFloat) {
-        guard let window else { return }
-        let contentW = contentPixelSize.width / scaleFactor
-        let contentH = contentPixelSize.height / scaleFactor
+    /// 用实际捕获帧尺寸校准内容区
+    /// - Parameters:
+    ///   - contentPixelSize: 捕获帧的像素尺寸
+    ///   - frameSize: 窗口 frame 的 pt 尺寸（自动推导 scale = 像素 / pt，兼容 Retina）
+    func calibrate(contentPixelSize: CGSize, frameSize: CGSize) {
+        guard let window, frameSize.width > 0 else { return }
+        let scale = contentPixelSize.width / frameSize.width
+        guard scale > 0 else { return }
+        let contentW = contentPixelSize.width / scale
+        let contentH = contentPixelSize.height / scale
         // 内容区左右居中于窗口、顶部紧贴标题栏下沿
         let x = window.frame.minX + (window.frame.width - contentW) / 2
         let topInset = window.frame.height - contentH

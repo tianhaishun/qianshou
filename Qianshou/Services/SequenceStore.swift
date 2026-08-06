@@ -17,7 +17,10 @@ enum SequenceStore {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(sequence).write(to: url)
+        // 原子写：先写临时文件再替换，避免中途崩溃留下损坏 JSON
+        let tmpURL = url.appendingPathExtension("tmp")
+        try encoder.encode(sequence).write(to: tmpURL)
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: tmpURL)
         return url
     }
 

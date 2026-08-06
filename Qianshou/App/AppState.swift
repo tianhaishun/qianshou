@@ -97,12 +97,15 @@ final class AppState: ObservableObject {
 
     // MARK: - 镜像
 
-    /// 刷新窗口定位并同步权限状态；窗口变化时由调用方决定重连
+    /// 刷新窗口定位并同步权限状态；按选中设备名优先匹配窗口
     func refreshWindow() {
-        windowLocator.refresh()
+        windowLocator.refresh(preferredTitle: selectedDevice?.name)
         screenCapturePermission = MirrorCapture.hasPermission()
         accessibilityPermission = AXIsProcessTrusted()
     }
+
+    /// 镜像期间窗口位置/尺寸监控（每 1s），变化时重定位 + 用最近帧重校准
+    private var windowMonitorTask: Task<Void, Never>?
 
     func startMirroring() async {
         DebugLog.log("[AppState] startMirroring begin")
@@ -121,12 +124,16 @@ final class AppState: ObservableObject {
         mirrorCapture = MirrorCapture(
             onFrame: { [weak self] image in
                 DispatchQueue.main.async {
-                    self?.mirrorFrame = image
-                    // 首帧校准内容区（窗口捕获含标题栏，捕获分辨率 1x = pt）
-                    self?.windowLocator.calibrate(
-                        contentPixelSize: CGSize(width: image.width, height: image.height),
-                        scaleFactor: 1.0
-                    )
+                    guard let self else { return }
+                    self.mirrorFrame = image
+                    // 用最新窗口 frame 校准内容区（frame 由窗口监控任务保持新鲜；
+                    // scale 自动推导：帧像素 / 窗口 pt，兼容 Retina 2x）
+                    if let window = self.windowLocator.window {
+                        self.windowLocator.calibrate(
+                            contentPixelSize: CGSize(width: image.width, height: image.height),
+                            frameSize: window.frame.size
+                        )
+                    }
                 }
             },
             onStop: { [weak self] in
@@ -140,13 +147,38 @@ final class AppState: ObservableObject {
             DebugLog.log("[AppState] starting capture for windowID=\(window.windowID)")
             try await mirrorCapture?.start(windowID: window.windowID)
             DebugLog.log("[AppState] capture started: \(mirrorCapture?.isCapturing ?? false)")
+            startWindowMonitor()
         } catch {
             DebugLog.log("[AppState] capture error: \(error)")
             errorMessage = "镜像启动失败: \(error.localizedDescription)"
         }
     }
 
+    /// 镜像期间定时刷新窗口定位（移动/缩放后注入坐标保持准确）
+    private func startWindowMonitor() {
+        windowMonitorTask?.cancel()
+        windowMonitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard let self, self.isMirroring else { return }
+                let oldFrame = self.windowLocator.window?.frame
+                self.refreshWindow()
+                // frame 变化 → 用最近帧重新校准（scale 自动推导）
+                if let newWindow = self.windowLocator.window,
+                   let frame = self.mirrorFrame,
+                   oldFrame != newWindow.frame {
+                    self.windowLocator.calibrate(
+                        contentPixelSize: CGSize(width: frame.width, height: frame.height),
+                        frameSize: newWindow.frame.size
+                    )
+                }
+            }
+        }
+    }
+
     func stopMirroring() async {
+        windowMonitorTask?.cancel()
+        windowMonitorTask = nil
         await mirrorCapture?.stop()
         mirrorFrame = nil
     }
@@ -187,6 +219,15 @@ final class AppState: ObservableObject {
     // MARK: - 录制/回放控制
 
     func startRecording() {
+        // 连点运行中禁止录制（注入的点击会被录进去，污染序列）
+        guard !clickEngine.isRunning else {
+            errorMessage = "请先停止连点再开始录制"
+            return
+        }
+        guard !player.isPlaying else {
+            errorMessage = "请先停止回放再开始录制"
+            return
+        }
         recorder.startRecording { [weak self] in
             self?.windowLocator.window?.contentRect
         }
@@ -195,7 +236,11 @@ final class AppState: ObservableObject {
     func stopRecording() {
         if let seq = recorder.stopRecording() {
             lastRecordedSequence = seq
-            try? SequenceStore.save(seq)
+            do {
+                try SequenceStore.save(seq)
+            } catch {
+                errorMessage = "保存序列失败: \(error.localizedDescription)"
+            }
             loadSequences()
         }
     }

@@ -58,18 +58,16 @@ enum SimulatorManager {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         p.arguments = ["simctl"] + args
+        // stderr 并入 stdout，避免分开读管道时 stderr 缓冲满导致死锁
         let outPipe = Pipe()
-        let errPipe = Pipe()
         p.standardOutput = outPipe
-        p.standardError = errPipe
+        p.standardError = outPipe
         try p.run()
-
-        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
+        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
 
         guard p.terminationStatus == 0 else {
-            let err = String(data: errData, encoding: .utf8) ?? ""
+            let err = String(data: outData, encoding: .utf8) ?? ""
             throw SimctlError(message: "simctl \(args.joined(separator: " ")) 失败: \(err)")
         }
         return String(data: outData, encoding: .utf8) ?? ""

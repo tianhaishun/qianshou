@@ -19,6 +19,12 @@ struct ContentView: View {
             DebugLog.log("[ContentView] task begin")
             appState.startPollingDevices()
         }
+        .onChange(of: appState.screenCapturePermission) { _, granted in
+            // 屏幕录制权限从拒绝变为授权后自动恢复镜像
+            if granted && !appState.isMirroring {
+                Task { await appState.startMirroring() }
+            }
+        }
         .alert("千手", isPresented: Binding(
             get: { appState.errorMessage != nil },
             set: { if !$0 { appState.errorMessage = nil } }

@@ -34,7 +34,7 @@ final class Player: ObservableObject {
                     x: rect.minX + rect.width * point.x,
                     y: rect.minY + rect.height * point.y
                 )
-                Injector.click(at: screenPoint)
+                await Injector.click(at: screenPoint)
                 self?.progressMs = point.offsetMs
                 DebugLog.log("[Player] replayed @\(point.offsetMs)ms rel(\(point.x), \(point.y))")
             }

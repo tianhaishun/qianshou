@@ -41,15 +41,34 @@ final class Recorder: ObservableObject {
             callback: { _, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
                 let recorder = Unmanaged<Recorder>.fromOpaque(userInfo).takeUnretainedValue()
-                // tap source 挂主 run loop，回调必在主线程
-                MainActor.assumeIsolated {
-                    recorder.handleEvent(event)
+                // tap 被系统禁用（超时/用户输入）时同步终止录制
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    DispatchQueue.main.async {
+                        recorder.handleTapDisabled()
+                    }
+                    return Unmanaged.passUnretained(event)
+                }
+                // 事件在 UI 线程注入则主线程直调，否则派发回主线程
+                if Thread.isMainThread {
+                    MainActor.assumeIsolated {
+                        recorder.handleEvent(event)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        recorder.handleEvent(event)
+                    }
                 }
                 return Unmanaged.passUnretained(event)
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            // tap 创建失败：完整清理状态
             isRecording = false
+            recordedCount = 0
+            points = []
+            startTime = nil
+            contentRectProvider = nil
+            Self.activeRecorder = nil
             return
         }
         self.tap = tap
@@ -57,6 +76,19 @@ final class Recorder: ObservableObject {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
+    /// 系统禁用 tap（超时/用户输入）——录制终止并清理
+    func handleTapDisabled() {
+        guard isRecording else { return }
+        DebugLog.log("[Recorder] tap disabled by system, stopping recording")
+        stopTap()
+        isRecording = false
+        recordedCount = 0
+        points = []
+        startTime = nil
+        contentRectProvider = nil
+        Self.activeRecorder = nil
     }
 
     /// 停止录制并返回序列；没录到任何点击返回 nil
@@ -82,6 +114,7 @@ final class Recorder: ObservableObject {
     private func stopTap() {
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
         }
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
@@ -108,9 +141,10 @@ final class Recorder: ObservableObject {
 }
 
 extension DateFormatter {
+    /// 带毫秒的录制名，避免同一秒内多次录制互相覆盖
     static let sequenceName: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "HH-mm-ss"
+        f.dateFormat = "HH-mm-ss-SSS"
         return f
     }()
 }

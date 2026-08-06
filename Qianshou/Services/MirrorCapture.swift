@@ -6,6 +6,7 @@ import ScreenCaptureKit
 /// 用 ScreenCaptureKit 实时捕获 Simulator 窗口，逐帧回调 CGImage
 ///
 /// - 捕获整个窗口（含标题栏），内容区校准交给 WindowLocator
+/// - 像素转换在后台队列执行（sampleHandlerQueue），只把 CGImage hop 回调用方
 /// - 必须持有 stream 实例；stop() 后释放
 final class MirrorCapture: NSObject, @unchecked Sendable {
 
@@ -26,6 +27,10 @@ final class MirrorCapture: NSObject, @unchecked Sendable {
     private var filter: SCContentFilter?
     private let onFrame: @Sendable (CGImage) -> Void
     private let onStop: (() -> Void)?
+    /// CIContext 建一次复用（GPU 上下文创建昂贵）
+    private let ciContext = CIContext()
+    /// 像素转换后台队列
+    private let convertQueue = DispatchQueue(label: "com.qianshou.mirror-convert")
 
     init(onFrame: @escaping @Sendable (CGImage) -> Void, onStop: (() -> Void)? = nil) {
         self.onFrame = onFrame
@@ -33,10 +38,7 @@ final class MirrorCapture: NSObject, @unchecked Sendable {
     }
 
     static func hasPermission() -> Bool {
-        if #available(macOS 15.0, *) {
-            return CGPreflightScreenCaptureAccess()
-        }
-        return CGPreflightScreenCaptureAccess()
+        CGPreflightScreenCaptureAccess()
     }
 
     /// 请求屏幕录制权限（首次会弹系统授权窗）
@@ -62,10 +64,19 @@ final class MirrorCapture: NSObject, @unchecked Sendable {
         config.capturesAudio = false
 
         filter = SCContentFilter(desktopIndependentWindow: window)
-        stream = SCStream(filter: filter!, configuration: config, delegate: self)
-        try stream!.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
-        try await stream!.startCapture()
-        isRunning = true
+        let newStream = SCStream(filter: filter!, configuration: config, delegate: self)
+        stream = newStream
+        do {
+            try newStream.addStreamOutput(self, type: .screen, sampleHandlerQueue: convertQueue)
+            try await newStream.startCapture()
+            isRunning = true
+        } catch {
+            // 失败路径清理，避免残留未启动的 stream
+            try? await newStream.stopCapture()
+            stream = nil
+            filter = nil
+            throw error
+        }
     }
 
     func stop() async {
@@ -73,6 +84,7 @@ final class MirrorCapture: NSObject, @unchecked Sendable {
         isRunning = false
         try? await stream.stopCapture()
         self.stream = nil
+        filter = nil
     }
 
     var isCapturing: Bool { isRunning }
@@ -82,28 +94,29 @@ extension MirrorCapture: SCStreamOutput {
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .screen,
               let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        // 保持引用稳定后转 CGImage 回调（由 UI 线程绘制）
-        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
-        let image = pixelBuffer.toCGImage()
-        CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
-        if let image {
-            onFrame(image)
+        // 后台队列上做像素转换（CI 渲染），避免占用 SCStream 内部队列
+        convertQueue.async { [weak self] in
+            guard let self, let image = pixelBuffer.toCGImage(context: self.ciContext) else { return }
+            self.onFrame(image)
         }
     }
 }
 
 extension MirrorCapture: SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        isRunning = false
-        onStop?()
+        // SCStream 回调可能不在主线程，isRunning 统一回主线程更新
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isRunning = false
+            self.onStop?()
+        }
     }
 }
 
 private extension CVPixelBuffer {
-    /// 将 CVPixelBuffer 转为 CGImage（BIOSRGB 渲染，支持 IOSurface 加速路径）
-    func toCGImage() -> CGImage? {
+    /// 将 CVPixelBuffer 转为 CGImage（复用传入的 CIContext）
+    func toCGImage(context: CIContext) -> CGImage? {
         let ci = CIImage(cvPixelBuffer: self)
-        let context = CIContext()
         return context.createCGImage(ci, from: ci.extent)
     }
 }

@@ -145,7 +145,7 @@ struct ControlPanelView: View {
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
-                .disabled(appState.clickPoints.isEmpty)
+                .disabled(appState.clickPoints.isEmpty || appState.player.isPlaying || appState.recorder.isRecording)
 
                 Text(appState.clickPoints.isEmpty ? "先添加点位" : "共 \(appState.clickPoints.count) 点 × \(appState.clickLoops >= 999 ? "无限" : "\(appState.clickLoops)") 轮")
                     .font(.caption)
@@ -187,7 +187,7 @@ struct ControlPanelView: View {
                                 Image(systemName: "play.fill")
                             }
                             .buttonStyle(.borderless)
-                            .disabled(appState.player.isPlaying)
+                            .disabled(appState.player.isPlaying || appState.clickEngine.isRunning)
                             .help("回放此序列")
                         }
                     }
@@ -242,7 +242,7 @@ struct ControlPanelView: View {
                 }
                 .controlSize(.large)
                 .buttonStyle(.bordered)
-                .disabled(appState.player.isPlaying)
+                .disabled(appState.player.isPlaying || appState.clickEngine.isRunning)
             }
 
             if appState.player.isPlaying {

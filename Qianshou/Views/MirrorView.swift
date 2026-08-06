@@ -106,7 +106,10 @@ struct MirrorView: View {
     }
 
     private func handleTap(at viewPoint: CGPoint, frame: CGImage, viewSize: CGSize) {
+        // 连点运行中、录制进行中、回放进行中都不可添加点位
         guard !appState.clickEngine.isRunning,
+              !appState.recorder.isRecording,
+              !appState.player.isPlaying,
               let contentInFrame = appState.windowLocator.contentRectNormalizedInFrame(),
               let rel = CoordinateMapper.viewToContent(viewPoint,
                                                        frame: CGSize(width: frame.width, height: frame.height),
@@ -131,7 +134,7 @@ private struct PointOverlay: View {
         let contentInFrame = appState.windowLocator.contentRectNormalizedInFrame()
         let frameSize = CGSize(width: frame.width, height: frame.height)
         let r = CoordinateMapper.markerRadius(base: 8, zoom: zoom)
-        let fontSize = max(10 / max(zoom, 1), 5)
+        let fontSize: CGFloat = 10
 
         Canvas { context, _ in
             guard let contentInFrame else { return }
