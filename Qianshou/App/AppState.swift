@@ -114,6 +114,10 @@ final class AppState: ObservableObject {
 
     func startMirroring() async {
         DebugLog.log("[AppState] startMirroring begin")
+        // 重复调用防护：先停旧捕获，避免 SCStream 泄漏
+        if isMirroring {
+            await stopMirroring()
+        }
         refreshWindow()
         DebugLog.log("[AppState] window=\(String(describing: windowLocator.window?.title)) permission=\(screenCapturePermission)")
         guard let window = windowLocator.window else {
@@ -207,6 +211,15 @@ final class AppState: ObservableObject {
     }
 
     func startClicking() {
+        // 与回放/录制互斥（代码层防护，不只依赖 UI 禁用）
+        guard !player.isPlaying else {
+            errorMessage = "请先停止回放再开始连点"
+            return
+        }
+        guard !recorder.isRecording else {
+            errorMessage = "请先停止录制再开始连点"
+            return
+        }
         clickEngine.start(
             points: clickPoints,
             intervalMs: Int(clickIntervalMs),
@@ -255,6 +268,15 @@ final class AppState: ObservableObject {
     }
 
     func playSequence(_ sequence: ClickSequence) {
+        // 与连点/录制互斥（代码层防护）
+        guard !clickEngine.isRunning else {
+            errorMessage = "请先停止连点再回放"
+            return
+        }
+        guard !recorder.isRecording else {
+            errorMessage = "请先停止录制再回放"
+            return
+        }
         player.play(
             sequence: sequence,
             contentRect: { [weak self] in self?.windowLocator.window?.contentRect },
@@ -277,13 +299,18 @@ final class AppState: ObservableObject {
     func setHotKey(enabled: Bool) {
         hotKeyEnabled = enabled
         if enabled {
-            hotKey.install { [weak self] in
+            let ok = hotKey.install { [weak self] in
                 guard let self else { return }
                 if self.clickEngine.isRunning {
                     self.stopClicking()
                 } else if !self.clickPoints.isEmpty {
                     self.startClicking()
                 }
+            }
+            if !ok {
+                // 无辅助功能权限时全局监听不生效，提示并回滚开关
+                hotKeyEnabled = false
+                errorMessage = "F8 热键需要辅助功能权限，请先授权"
             }
         } else {
             hotKey.uninstall()

@@ -63,10 +63,17 @@ enum SimulatorManager {
         p.standardOutput = outPipe
         p.standardError = outPipe
         try p.run()
-        p.waitUntilExit()
+
+        // 真正的异步等待（terminationHandler 回调，不阻塞调用线程）
+        let status = await withCheckedContinuation { cont in
+            p.terminationHandler = { proc in
+                cont.resume(returning: proc.terminationStatus)
+            }
+        }
+        // 进程已退出，管道数据完整可读
         let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
 
-        guard p.terminationStatus == 0 else {
+        guard status == 0 else {
             let err = String(data: outData, encoding: .utf8) ?? ""
             throw SimctlError(message: "simctl \(args.joined(separator: " ")) 失败: \(err)")
         }

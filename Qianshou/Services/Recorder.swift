@@ -150,14 +150,20 @@ final class Recorder: ObservableObject {
             pendingDrag = PendingDrag(startPoint: rel, startTime: CFAbsoluteTimeGetCurrent(), lastPoint: rel)
         case .leftMouseDragged:
             guard var drag = pendingDrag, let rel = toRelative(p, rect: rect) else { return }
-            if abs(rel.x - drag.lastPoint.x) > dragThreshold || abs(rel.y - drag.lastPoint.y) > dragThreshold {
+            // 判定用累计位移（对比起点），慢速拖拽逐事件增量小也能正确识别
+            if abs(rel.x - drag.startPoint.x) > dragThreshold || abs(rel.y - drag.startPoint.y) > dragThreshold {
                 drag.moved = true
                 drag.lastPoint = rel
                 pendingDrag = drag
             }
         case .leftMouseUp:
             defer { pendingDrag = nil }
-            guard let drag = pendingDrag, let endRel = toRelative(p, rect: rect) else { return }
+            guard let drag = pendingDrag else { return }
+            guard let endRel = toRelative(p, rect: rect) else {
+                // 手势终点在内容区外：整条丢弃（含起点），记录便于排查
+                DebugLog.log("[Recorder] gesture dropped: mouseUp outside content area")
+                return
+            }
             let offsetMs = Int((drag.startTime - startTime) * 1000)
             if drag.moved {
                 // 拖动：起点 → 终点

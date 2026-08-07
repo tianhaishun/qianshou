@@ -65,6 +65,40 @@ final class ClickSequenceTests: XCTestCase {
         XCTAssertEqual(points[0].x, 0.5, accuracy: 0.0001)
     }
 
+    func testDragJSONMissingFieldsDecodes() throws {
+        // drag 点缺 endX/endY/durationMs 时仍可解码（回放退化为原地点击）
+        let json = """
+        [{"kind":"drag","x":0.1,"y":0.2,"offsetMs":300}]
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let points = try JSONDecoder().decode([SequencePoint].self, from: data)
+        XCTAssertEqual(points[0].kind, .drag)
+        XCTAssertNil(points[0].endX)
+        XCTAssertNil(points[0].durationMs)
+    }
+
+    func testUnknownKindFallsBackToClick() throws {
+        // 未知 kind 值回退 .click，而不是整个序列解码失败
+        let json = """
+        [{"kind":"pinch","x":0.1,"y":0.2,"offsetMs":300}]
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let points = try JSONDecoder().decode([SequencePoint].self, from: data)
+        XCTAssertEqual(points[0].kind, .click)
+    }
+
+    func testDurationIncludesDrag() {
+        let seq = ClickSequence(name: "含拖拽",
+                                points: [
+                                    SequencePoint(x: 0, y: 0, offsetMs: 100),
+                                    SequencePoint(kind: .drag, x: 0, y: 0, offsetMs: 500,
+                                                  endX: 1, endY: 1, durationMs: 800),
+                                ],
+                                createdAt: Date())
+        // 拖拽结束时间 = 500 + 800，而非 500
+        XCTAssertEqual(seq.durationMs, 1300)
+    }
+
     func testSequenceEquality() {
         let a = ClickSequence(name: "a", points: [SequencePoint(x: 0.1, y: 0.1, offsetMs: 10)], createdAt: Date())
         var b = a

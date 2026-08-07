@@ -53,13 +53,19 @@ final class WindowLocator {
                 contentRect: rect.insetBy(dx: 0, dy: 0).withTopInset(estimatedTopInset),
                 topInset: estimatedTopInset
             )
-            if let preferredTitle, title.contains(preferredTitle) {
+            // 精确匹配设备名（Simulator 窗口标题 = 设备名），
+            // 避免 "iPhone 17 Pro" 误匹配 "iPhone 17 Pro Max"
+            if let preferredTitle, title == preferredTitle {
                 window = candidate
                 return
             }
             fallback = fallback ?? candidate
         }
         window = fallback
+        if let preferredTitle, let window, window.title != preferredTitle {
+            // 首选设备窗口不可见时回退到别的模拟器窗口（用户可能混淆注入目标）
+            DebugLog.log("[WindowLocator] 首选窗口「\(preferredTitle)」不可见，回退到「\(window.title)」")
+        }
     }
 
     /// 内容区在捕获帧（窗口全图）内的 rect，归一化 0...1

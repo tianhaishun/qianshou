@@ -66,4 +66,63 @@ final class CoordinateMapperTests: XCTestCase {
         XCTAssertEqual(screen.x, 648, accuracy: 0.001)
         XCTAssertEqual(screen.y, 534, accuracy: 0.001)
     }
+
+    // MARK: - zoom/offset 换算
+
+    func testDrawRectZoom2Centered() {
+        // zoom=2 时画面以视图中心放大 2 倍
+        let rect = CoordinateMapper.drawRect(frame: CGSize(width: 456, height: 972),
+                                             viewSize: CGSize(width: 400, height: 800),
+                                             zoom: 2)
+        XCTAssertEqual(rect?.width ?? 0, 750.6, accuracy: 0.1)
+        XCTAssertEqual(rect?.height ?? 0, 1600, accuracy: 0.1)
+        // 中心不变
+        XCTAssertEqual(rect?.midX ?? -1, 200, accuracy: 0.01)
+        XCTAssertEqual(rect?.midY ?? -1, 400, accuracy: 0.01)
+    }
+
+    func testDrawRectZoomWithOffset() {
+        let rect = CoordinateMapper.drawRect(frame: CGSize(width: 456, height: 972),
+                                             viewSize: CGSize(width: 400, height: 800),
+                                             zoom: 2,
+                                             offset: CGSize(width: 50, height: -30))
+        XCTAssertEqual(rect?.minX ?? -1, (400 - 750.6) / 2 + 50, accuracy: 0.1)
+        XCTAssertEqual(rect?.minY ?? -1, (800 - 1600) / 2 - 30, accuracy: 0.1)
+    }
+
+    func testViewToContentWithZoomRoundTrip() {
+        // zoom=2 下点击视图内某点 → 内容区相对坐标
+        let frame = CGSize(width: 456, height: 972)
+        let view = CGSize(width: 400, height: 800)
+        let rel = CoordinateMapper.viewToContent(CGPoint(x: 300, y: 400),
+                                                 frame: frame, viewSize: view,
+                                                 contentInFrame: contentInFrame,
+                                                 zoom: 2)
+        XCTAssertNotNil(rel)
+        // 视图中心 (200,400) 对应内容区中心 (0.5, 0.485)；x=300 在中心偏右
+        XCTAssertEqual(rel?.x ?? -1, 0.5 + (100 / 750.6), accuracy: 0.01)
+        XCTAssertEqual(rel?.y ?? -1, (0.5 - contentInFrame.minY) / contentInFrame.height, accuracy: 0.01)
+
+        // 往返：contentToView 应还原到同一视图点
+        if let rel {
+            let back = CoordinateMapper.contentToView(rel, frame: frame, viewSize: view,
+                                                      contentInFrame: contentInFrame, zoom: 2)
+            XCTAssertEqual(back?.x ?? -1, 300, accuracy: 0.5)
+            XCTAssertEqual(back?.y ?? -1, 400, accuracy: 0.5)
+        }
+    }
+
+    func testContentToViewWithZoomAndOffset() {
+        let frame = CGSize(width: 456, height: 972)
+        let view = CGSize(width: 400, height: 800)
+        let rel = CGPoint(x: 0.5, y: 0.5)
+        let v = CoordinateMapper.contentToView(rel, frame: frame, viewSize: view,
+                                               contentInFrame: contentInFrame,
+                                               zoom: 2, offset: CGSize(width: 40, height: 20))
+        // 内容区中心在 zoom=2 视图中的位置：x = 视图中心 + offset；
+        // y 要考虑内容区在帧内的偏移（0.5144 而非 0.5）
+        let drawMinY: CGFloat = (800 - 1600) / 2 + 20
+        XCTAssertEqual(v?.x ?? -1, 240, accuracy: 0.5)
+        XCTAssertEqual(v?.y ?? -1, drawMinY + 0.5144 * 1600, accuracy: 0.5)
+    }
 }

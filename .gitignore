@@ -13,3 +13,6 @@ vendor/
 *.log
 # Xcode 测试覆盖率
 *.profraw
+
+# 发布产物（dist/ 不入库；docs/demo.gif 是 README 引用的资源，保留）
+dist/

@@ -37,7 +37,10 @@ struct SequencePoint: Codable, Equatable, Hashable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .click
+        // 未知 kind 回退 .click：避免旧/损坏 JSON 导致整个序列文件解码失败被静默丢弃
+        if let raw = try c.decodeIfPresent(String.self, forKey: .kind) {
+            kind = Kind(rawValue: raw) ?? .click
+        }
         x = try c.decode(Double.self, forKey: .x)
         y = try c.decode(Double.self, forKey: .y)
         offsetMs = try c.decodeIfPresent(Int.self, forKey: .offsetMs) ?? 0
@@ -64,7 +67,8 @@ struct ClickSequence: Codable, Equatable, Hashable {
     var points: [SequencePoint]
     var createdAt: Date
 
+    /// 序列总时长（拖拽点算上执行时长）
     var durationMs: Int {
-        points.map(\.offsetMs).max() ?? 0
+        points.map { $0.offsetMs + ($0.durationMs ?? 0) }.max() ?? 0
     }
 }

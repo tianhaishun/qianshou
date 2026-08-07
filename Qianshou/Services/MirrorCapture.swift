@@ -24,6 +24,8 @@ final class MirrorCapture: NSObject, @unchecked Sendable {
 
     private var stream: SCStream?
     private var isRunning = false
+    /// 主动停止标志：避免 stop() 后 didStopWithError 回调触发「镜像已断开」误报
+    private var intentionalStop = false
     private var filter: SCContentFilter?
     private let onFrame: @Sendable (CGImage) -> Void
     private let onStop: (() -> Void)?
@@ -70,6 +72,7 @@ final class MirrorCapture: NSObject, @unchecked Sendable {
             try newStream.addStreamOutput(self, type: .screen, sampleHandlerQueue: convertQueue)
             try await newStream.startCapture()
             isRunning = true
+            intentionalStop = false
         } catch {
             // 失败路径清理，避免残留未启动的 stream
             try? await newStream.stopCapture()
@@ -81,6 +84,7 @@ final class MirrorCapture: NSObject, @unchecked Sendable {
 
     func stop() async {
         guard let stream else { return }
+        intentionalStop = true
         isRunning = false
         try? await stream.stopCapture()
         self.stream = nil
@@ -108,6 +112,8 @@ extension MirrorCapture: SCStreamDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.isRunning = false
+            // 主动停止（stop()）不触发「断开」提示
+            guard !self.intentionalStop else { return }
             self.onStop?()
         }
     }
