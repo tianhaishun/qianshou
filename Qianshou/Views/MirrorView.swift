@@ -1,61 +1,48 @@
 import AppKit
 import SwiftUI
 
-/// 镜像视图：显示模拟器窗口实时画面 + 连点点位标记 + 点击添加点位
-/// 支持缩放（zoom 控件）与拖拽平移
+/// 镜像视图：模拟器实时画面卡片 + 点位标记（渐变徽标/命中脉冲/完成对勾）+ 缩放控制
 struct MirrorView: View {
     @EnvironmentObject private var appState: AppState
     @State private var zoom: CGFloat = 1
     @State private var offset: CGSize = .zero
+    @State private var isHovering = false
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                if let frame = appState.mirrorFrame {
-                    FrameImageView(frame: frame) { viewPoint in
-                        handleTap(at: viewPoint, frame: frame, viewSize: geo.size)
-                    } onPan: { delta in
-                        offset = CGSize(width: offset.width + delta.width,
-                                        height: offset.height + delta.height)
-                    } onDoubleClick: {
-                        zoom = 1
-                        offset = .zero
+        VStack(spacing: 0) {
+            mirrorHeader
+            GeometryReader { geo in
+                ZStack {
+                    if let frame = appState.mirrorFrame {
+                        FrameImageView(frame: frame) { viewPoint in
+                            handleTap(at: viewPoint, frame: frame, viewSize: geo.size)
+                        } onPan: { delta in
+                            offset = CGSize(width: offset.width + delta.width,
+                                            height: offset.height + delta.height)
+                        } onDoubleClick: {
+                            zoom = 1
+                            offset = .zero
+                        }
+                        PointOverlay(frame: frame, viewSize: geo.size, zoom: zoom, offset: offset)
+                    } else if appState.simulatorWindow != nil {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                            Text("正在连接镜像…")
+                                .foregroundStyle(DesignTokens.textSecondary)
+                        }
+                    } else {
+                        mirrorEmptyState
                     }
-                    PointOverlay(frame: frame, viewSize: geo.size, zoom: zoom, offset: offset)
-                } else if appState.simulatorWindow != nil {
-                    VStack(spacing: 8) {
-                        ProgressView()
-                        Text("正在连接镜像…")
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    PlaceholderView()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(DesignTokens.bgSunken)
+            }
+            .overlay(alignment: .bottom) {
+                zoomControl
             }
         }
-        .overlay(alignment: .bottom) {
-            zoomControl
-        }
-        .overlay(alignment: .topTrailing) {
-            HStack(spacing: 8) {
-                if let window = appState.simulatorWindow {
-                    Text(window.title)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.ultraThinMaterial, in: Capsule())
-                }
-                if appState.clickEngine.isRunning {
-                    Text("连点中")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.red.opacity(0.8), in: Capsule())
-                        .foregroundStyle(.white)
-                }
-            }
-            .padding(8)
-        }
+        .padding(12)
+        .background(cardBackground)
         .onAppear {
             DebugLog.log("[MirrorView] onAppear")
             Task { await appState.startMirroring() }
@@ -65,10 +52,92 @@ struct MirrorView: View {
         }
     }
 
-    // MARK: - 坐标换算
+    // MARK: - 卡片
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: DesignTokens.cornerRadius)
+            .fill(DesignTokens.bgCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.cornerRadius)
+                    .stroke(isHovering ? DesignTokens.borderHover : DesignTokens.borderCard, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.35), radius: 24, y: 8)
+            .shadow(color: isHovering ? DesignTokens.brandGlow : .clear, radius: 12)
+            .animation(DesignTokens.cardHover, value: isHovering)
+    }
+
+    private var mirrorHeader: some View {
+        HStack(spacing: 8) {
+            if let window = appState.simulatorWindow {
+                HStack(spacing: 6) {
+                    StatusDot(isBooted: true)
+                    Text(window.title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesignTokens.brandBright)
+                    Text("已启动")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.ok)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule().fill(DesignTokens.brandTint)
+                        .overlay(Capsule().stroke(DesignTokens.brandBright.opacity(0.3), lineWidth: 1))
+                )
+            }
+            if appState.clickEngine.isRunning {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(DesignTokens.err)
+                        .frame(width: 6, height: 6)
+                        .opacity(0.9)
+                    Text("连点中 · 第 \(appState.clickEngine.currentLoop)/\(appState.clickEngine.totalLoops) 轮")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(DesignTokens.textPrimary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(DesignTokens.bgCardRaised))
+            }
+            Spacer()
+        }
+        .padding(.bottom, 10)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+
+    private var mirrorEmptyState: some View {
+        VStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: DesignTokens.cornerRadius)
+                .stroke(DesignTokens.borderCard, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                .frame(width: 280, height: 180)
+                .overlay {
+                    VStack(spacing: 10) {
+                        Image(systemName: "iphone.gen3")
+                            .font(.system(size: 36))
+                            .foregroundStyle(DesignTokens.textTertiary)
+                        Text("未选择设备")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(DesignTokens.textSecondary)
+                        Text("从左侧选择或启动一台模拟器")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DesignTokens.textTertiary)
+                        Button {
+                            Task { await appState.startMirroring() }
+                        } label: {
+                            Label("连接镜像", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+        }
+    }
+
+    // MARK: - 缩放控制
 
     private var zoomControl: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Button {
                 zoom = min(zoom * 1.25, 4)
             } label: {
@@ -76,7 +145,8 @@ struct MirrorView: View {
             }
             .buttonStyle(.borderless)
 
-            Slider(value: $zoom, in: 1...4, step: 0.1)
+            Slider(value: $zoom, in: 1...4, step: 0.25)
+                .tint(DesignTokens.brandBright)
                 .frame(width: 120)
 
             Button {
@@ -86,24 +156,57 @@ struct MirrorView: View {
             }
             .buttonStyle(.borderless)
 
-            Text(String(format: "%.1fx", zoom))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+            Text(String(format: "%.2g×", zoom))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(DesignTokens.textSecondary)
+                .contentTransition(.numericText())
+                .animation(DesignTokens.quick, value: zoom)
+                .frame(width: 40, alignment: .center)
+
+            ForEach([1.0, 2.0, 4.0], id: \.self) { level in
+                Button {
+                    withAnimation(DesignTokens.quick) {
+                        zoom = level
+                        offset = .zero
+                    }
+                } label: {
+                    Text("\(Int(level))×")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(abs(zoom - level) < 0.01 ? .white : DesignTokens.textSecondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background {
+                            if abs(zoom - level) < 0.01 {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(DesignTokens.brandGradient)
+                            } else {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(Color.clear)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+            }
 
             Button {
-                zoom = 1
-                offset = .zero
+                withAnimation(DesignTokens.quick) {
+                    zoom = 1
+                    offset = .zero
+                }
             } label: {
                 Image(systemName: "arrow.counterclockwise")
             }
             .buttonStyle(.borderless)
-            .help("重置缩放")
+            .help("适应窗口")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
         .background(.ultraThinMaterial, in: Capsule())
-        .padding(.bottom, 8)
+        .overlay(Capsule().stroke(DesignTokens.borderCard, lineWidth: 1))
+        .padding(.bottom, 10)
     }
+
+    // MARK: - 坐标换算
 
     private func handleTap(at viewPoint: CGPoint, frame: CGImage, viewSize: CGSize) {
         // 连点运行中、录制进行中、回放进行中都不可添加点位
@@ -122,7 +225,7 @@ struct MirrorView: View {
     }
 }
 
-/// 点位标记层：把相对坐标画回视图位置（标记尺寸固定屏幕像素，不随缩放变大）
+/// 点位标记层：渐变徽标 + 命中脉冲 + 完成对勾
 private struct PointOverlay: View {
     @EnvironmentObject private var appState: AppState
     let frame: CGImage
@@ -133,8 +236,7 @@ private struct PointOverlay: View {
     var body: some View {
         let contentInFrame = appState.windowLocator.contentRectNormalizedInFrame()
         let frameSize = CGSize(width: frame.width, height: frame.height)
-        let r = CoordinateMapper.markerRadius(base: 8, zoom: zoom)
-        let fontSize: CGFloat = 10
+        let markerR = DesignTokens.markerDiameter / 2
 
         Canvas { context, _ in
             guard let contentInFrame else { return }
@@ -144,20 +246,40 @@ private struct PointOverlay: View {
                     frame: frameSize, viewSize: viewSize, contentInFrame: contentInFrame,
                     zoom: zoom, offset: offset
                 ) else { continue }
-                let vx = v.x
-                let vy = v.y
+                let isHit = appState.clickEngine.currentPointIndex == index
+                let isDone = appState.clickEngine.isRunning && appState.clickEngine.currentPointIndex != nil
+                    && index < (appState.clickEngine.currentPointIndex ?? 0)
 
-                let circleRect = CGRect(x: vx - r, y: vy - r, width: r * 2, height: r * 2)
-                // 描边让深色背景上也清晰
-                context.stroke(Ellipse().path(in: circleRect.insetBy(dx: -1.5, dy: -1.5)),
-                               with: .color(.black.opacity(0.7)),
-                               lineWidth: 1.5)
-                context.fill(Ellipse().path(in: circleRect),
-                             with: .color(appState.clickEngine.currentPointIndex == index ? .red : .accentColor))
+                let rect = CGRect(x: v.x - markerR, y: v.y - markerR,
+                                  width: DesignTokens.markerDiameter, height: DesignTokens.markerDiameter)
+
+                // 描边（浅色画面上可见）
+                context.stroke(Circle().path(in: rect.insetBy(dx: -2, dy: -2)),
+                               with: .color(Color(hex: 0x0A111F).opacity(0.8)),
+                               lineWidth: 3)
+                // 填充：命中红 / 完成半透明 / 常态渐变
+                if isHit {
+                    context.fill(Circle().path(in: rect), with: .color(DesignTokens.err))
+                } else if isDone {
+                    context.fill(Circle().path(in: rect), with: .color(DesignTokens.ok.opacity(0.45)))
+                } else {
+                    let gradient = Gradient(colors: [DesignTokens.brandDeep, DesignTokens.brandBright])
+                    let g = GraphicsContext.Shading.linearGradient(gradient, startPoint: rect.origin,
+                                                                   endPoint: CGPoint(x: rect.maxX, y: rect.maxY))
+                    context.fill(Circle().path(in: rect), with: g)
+                }
+                // 序号
                 context.draw(context.resolve(Text("\(index + 1)")
-                                .font(.system(size: fontSize, weight: .bold))
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .foregroundStyle(.white)),
-                             at: CGPoint(x: vx, y: vy))
+                             at: v)
+                // 完成对勾
+                if isDone {
+                    context.draw(context.resolve(Text("✓")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white)),
+                                 at: CGPoint(x: v.x + markerR * 0.8, y: v.y + markerR * 0.8))
+                }
             }
         }
         .allowsHitTesting(false)
@@ -208,7 +330,7 @@ final class FrameLayerView: NSView {
         super.init(frame: frameRect)
         layer = CALayer()
         layer?.contentsGravity = .resizeAspect
-        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.backgroundColor = NSColor(hex: 0x0A111F).cgColor
         wantsLayer = true
     }
 
@@ -264,17 +386,31 @@ final class FrameLayerView: NSView {
     }
 }
 
-private struct PlaceholderView: View {
+private extension NSColor {
+    convenience init(hex: UInt32) {
+        self.init(
+            srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+
+/// 状态点：booted 呼吸动画（镜像卡片 header 复用）
+struct StatusDot: View {
+    let isBooted: Bool
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "iphone.gen3")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("没有可显示的模拟器窗口")
-                .foregroundStyle(.secondary)
-            Text("在左侧选择模拟器并点击「启动」")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
+        Circle()
+            .fill(isBooted ? DesignTokens.ok : DesignTokens.off)
+            .frame(width: 7, height: 7)
+            .shadow(color: isBooted ? DesignTokens.ok.opacity(0.6) : .clear, radius: 3)
+            .animation(
+                isBooted
+                    ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true)
+                    : .default,
+                value: isBooted
+            )
     }
 }

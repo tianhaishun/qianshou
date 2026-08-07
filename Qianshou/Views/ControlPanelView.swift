@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 控制面板：连点模式（点位+配置+启停）与录制模式（录制/回放/序列）
+/// 控制面板：连点模式（点位/配置/控制三卡）与录制模式（序列/录制控制/回放三卡）
 struct ControlPanelView: View {
     @EnvironmentObject private var appState: AppState
     @State private var mode: PanelMode = .clicker
@@ -11,185 +11,306 @@ struct ControlPanelView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-            Picker("模式", selection: $mode) {
-                ForEach(PanelMode.allCases, id: \.self) { m in
-                    Text(m.rawValue).tag(m)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 180)
-            .padding(.top, 8)
-
-            HStack(alignment: .top, spacing: 16) {
+        VStack(spacing: 10) {
+            modePicker
+            HStack(alignment: .top, spacing: 10) {
                 switch mode {
                 case .clicker:
-                    pointList
-                    Divider().frame(height: nil)
-                    configPanel
-                    Divider().frame(height: nil)
-                    clickControls
+                    pointCard
+                    configCard
+                    clickControlCard
                 case .recorder:
-                    sequenceList
-                    Divider().frame(height: nil)
-                    recorderControls
+                    sequenceCard
+                    recordControlCard
+                    replayCard
                 }
             }
-            .padding(10)
         }
-        .frame(height: 190)
-        .background(.bar)
+        .padding(12)
+        .background(DesignTokens.bgCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.cornerRadius)
+                .stroke(DesignTokens.borderCard, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius))
         .onAppear {
             appState.loadSequences()
         }
     }
 
-    // MARK: - 连点模式
+    // MARK: - 模式切换（matchedGeometryEffect 滑动指示）
 
-    private var pointList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("点位（\(appState.clickPoints.count)）")
-                    .font(.headline)
-                Spacer()
-                Button("清空") { appState.clearClickPoints() }
-                    .disabled(appState.clickEngine.isRunning)
+    private var modePicker: some View {
+        HStack(spacing: 4) {
+            ForEach(PanelMode.allCases, id: \.self) { m in
+                Button {
+                    withAnimation(.spring(duration: 0.22, bounce: 0.2)) {
+                        mode = m
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: m == .clicker ? "cursorarrow.click.2" : "record.circle")
+                        Text(m.rawValue)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(mode == m ? .white : DesignTokens.textSecondary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 6)
+                    .background(
+                        ZStack {
+                            if mode == m {
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(DesignTokens.brandGradient)
+                                    .matchedGeometryEffect(id: "mode", in: namespace)
+                            }
+                        }
+                    )
+                }
+                .buttonStyle(.plain)
             }
+        }
+        .padding(3)
+        .background(Capsule().fill(DesignTokens.bgSunken))
+    }
+
+    @Namespace private var namespace
+
+    // MARK: - 卡片容器
+
+    private func cardHeader(_ systemImage: String, _ title: String, count: Int? = nil) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13))
+                .foregroundStyle(DesignTokens.brandBright)
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DesignTokens.textPrimary)
+            if let count {
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(DesignTokens.brandGradient))
+            }
+            Spacer()
+        }
+        .padding(.bottom, 6)
+    }
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content()
+        }
+        .padding(10)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(DesignTokens.bgSunken)
+        )
+    }
+
+    // MARK: - 连点模式：点位卡
+
+    private var pointCard: some View {
+        card {
+            cardHeader("mappin.circle.fill", "点位", count: appState.clickPoints.count)
             if appState.clickPoints.isEmpty {
-                Text("点击右侧镜像画面添加点位")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 6) {
+                    Spacer()
+                    Image(systemName: "cursorarrow.click.2")
+                        .font(.system(size: 20))
+                        .foregroundStyle(DesignTokens.textTertiary)
+                    Text("点击右侧画面放置点位")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesignTokens.textSecondary)
+                    Text("F8 开始连点")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.textTertiary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
             } else {
                 List {
                     ForEach(Array(appState.clickPoints.enumerated()), id: \.element.id) { index, point in
-                        HStack {
+                        HStack(spacing: 8) {
                             Text("\(index + 1)")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 20)
-                            Text(point.label)
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .frame(width: 18, height: 18)
+                                .background(Circle().fill(DesignTokens.brandGradient))
+                            Text("\(String(format: "%.2f", point.x)) · \(String(format: "%.2f", point.y))")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(DesignTokens.textSecondary)
                             Spacer()
-                            Text("(\(String(format: "%.2f", point.x)), \(String(format: "%.2f", point.y)))")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
                         }
-                        .background(appState.clickEngine.currentPointIndex == index ? Color.accentColor.opacity(0.15) : .clear)
+                        .padding(.vertical, 2)
+                        .background(appState.clickEngine.currentPointIndex == index
+                                    ? DesignTokens.brandTint : .clear)
                     }
                     .onDelete { offsets in
                         appState.removeClickPoint(at: offsets)
                     }
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 90)
             }
+            Button("清空点位") {
+                appState.clearClickPoints()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(appState.clickPoints.isEmpty || appState.clickEngine.isRunning)
         }
-        .frame(width: 260)
+        .frame(minWidth: 210)
     }
 
-    private var configPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("配置")
-                .font(.headline)
+    // MARK: - 连点模式：配置卡
 
-            HStack {
-                Text("点间隔")
-                Slider(value: $appState.clickIntervalMs, in: 50...5000, step: 50)
-                Text("\(Int(appState.clickIntervalMs)) ms")
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 60, alignment: .trailing)
-            }
-
-            HStack {
-                Text("轮间隔")
-                Slider(value: $appState.clickLoopIntervalMs, in: 0...5000, step: 100)
-                Text("\(Int(appState.clickLoopIntervalMs)) ms")
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 60, alignment: .trailing)
-            }
-
-            HStack {
-                Text("循环轮数")
-                Stepper(value: $appState.clickLoops, in: 1...999) {
-                    Text(appState.clickLoops >= 999 ? "无限" : "\(appState.clickLoops)")
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 40, alignment: .trailing)
+    private var configCard: some View {
+        card {
+            cardHeader("slider.horizontal.3", "配置")
+            VStack(spacing: 8) {
+                configRow(label: "点间隔",
+                          value: "\(Int(appState.clickIntervalMs))ms",
+                          slider: $appState.clickIntervalMs, range: 50...5000, step: 50)
+                configRow(label: "轮间隔",
+                          value: "\(Int(appState.clickLoopIntervalMs))ms",
+                          slider: $appState.clickLoopIntervalMs, range: 0...5000, step: 100)
+                HStack {
+                    Text("循环轮数")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesignTokens.textSecondary)
+                    Spacer()
+                    Stepper(value: $appState.clickLoops, in: 1...999) {
+                        Text(appState.clickLoops >= 999 ? "∞" : "\(appState.clickLoops)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(DesignTokens.textPrimary)
+                            .frame(width: 30, alignment: .trailing)
+                            .contentTransition(.numericText())
+                    }
+                    .controlSize(.small)
                 }
             }
+            Spacer()
         }
-        .frame(width: 240)
+        .frame(minWidth: 200)
     }
 
-    private var clickControls: some View {
-        VStack(spacing: 8) {
+    private func configRow(label: String, value: String, slider: Binding<Double>, range: ClosedRange<Double>, step: Double) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignTokens.textSecondary)
+                Spacer()
+                Text(value)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(DesignTokens.textPrimary)
+                    .contentTransition(.numericText())
+            }
+            Slider(value: slider, in: range, step: step)
+                .tint(DesignTokens.brandBright)
+                .controlSize(.small)
+        }
+    }
+
+    // MARK: - 连点模式：控制卡
+
+    private var clickControlCard: some View {
+        card {
+            cardHeader("play.circle.fill", "控制")
+            Spacer()
             if appState.clickEngine.isRunning {
                 Button {
                     appState.stopClicking()
                 } label: {
-                    Label("停止", systemImage: "stop.fill")
-                        .frame(minWidth: 120)
+                    Label("停止连点", systemImage: "stop.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
-                .tint(.red)
-
+                .tint(DesignTokens.err)
                 Text("第 \(appState.clickEngine.currentLoop)/\(appState.clickEngine.totalLoops) 轮")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(DesignTokens.textSecondary)
+                    .frame(maxWidth: .infinity)
             } else {
                 Button {
                     appState.startClicking()
                 } label: {
                     Label("开始连点", systemImage: "play.fill")
-                        .frame(minWidth: 120)
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
-                .buttonStyle(.borderedProminent)
-                .disabled(appState.clickPoints.isEmpty || appState.player.isPlaying || appState.recorder.isRecording)
-
-                Text(appState.clickPoints.isEmpty ? "先添加点位" : "共 \(appState.clickPoints.count) 点 × \(appState.clickLoops >= 999 ? "无限" : "\(appState.clickLoops)") 轮")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .buttonStyle(GradientButtonStyle())
+                .disabled(appState.clickPoints.isEmpty
+                          || appState.player.isPlaying
+                          || appState.recorder.isRecording)
+                Text(appState.clickPoints.isEmpty ? "先点击画面添加点位" : "共 \(appState.clickPoints.count) 点 × \(appState.clickLoops >= 999 ? "无限" : "\(appState.clickLoops)") 轮")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.textTertiary)
+                    .frame(maxWidth: .infinity)
             }
-
             Spacer()
-
-            Text("连点前请保持模拟器窗口不被遮挡")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            Text("F8 全局启停 · 保持模拟器窗口可见")
+                .font(.system(size: 9))
+                .foregroundStyle(DesignTokens.textTertiary)
+                .frame(maxWidth: .infinity)
         }
+        .frame(minWidth: 170)
     }
 
-    // MARK: - 录制模式
+    // MARK: - 录制模式：序列卡
 
-    private var sequenceList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("已保存序列")
-                .font(.headline)
+    private var sequenceCard: some View {
+        card {
+            cardHeader("list.bullet.rectangle", "序列", count: appState.savedSequences.count)
             if appState.savedSequences.isEmpty {
-                Text("录制后自动保存到这里")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 6) {
+                    Spacer()
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 20))
+                        .foregroundStyle(DesignTokens.textTertiary)
+                    Text("还没有录制序列")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesignTokens.textSecondary)
+                    Text("录制后自动保存为 JSON")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.textTertiary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
             } else {
                 List {
                     ForEach(appState.savedSequences, id: \.self) { seq in
-                        HStack {
-                            Text(seq.name)
-                                .lineLimit(1)
-                            Spacer()
-                            Text("\(seq.points.count) 点 · \(seq.durationMs / 1000) s")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
                             Button {
                                 appState.playSequence(seq)
                             } label: {
-                                Image(systemName: "play.fill")
+                                Image(systemName: appState.player.isPlaying ? "arrow.triangle.2.circlepath" : "play.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(appState.player.isPlaying ? DesignTokens.err : DesignTokens.brandBright)
+                                    .frame(width: 22, height: 22)
+                                    .background(Circle().fill(DesignTokens.brandTint))
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.plain)
                             .disabled(appState.player.isPlaying || appState.clickEngine.isRunning)
-                            .help("回放此序列")
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(seq.name)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(DesignTokens.textPrimary)
+                                    .lineLimit(1)
+                                Text("\(String(format: "%.1f", Double(seq.durationMs) / 1000))s · \(seq.points.count) 点")
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(DesignTokens.textTertiary)
+                            }
+                            Spacer()
                         }
+                        .padding(.vertical, 2)
                     }
                     .onDelete { offsets in
                         offsets.map { appState.savedSequences[$0] }
@@ -197,71 +318,138 @@ struct ControlPanelView: View {
                     }
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 90)
             }
+            Button("删除全部") {
+                appState.savedSequences.forEach { appState.deleteSequence($0) }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(appState.savedSequences.isEmpty)
         }
-        .frame(width: 280)
+        .frame(minWidth: 220)
     }
 
-    private var recorderControls: some View {
-        VStack(spacing: 8) {
+    // MARK: - 录制模式：录制控制卡
+
+    private var recordControlCard: some View {
+        card {
+            cardHeader("record.circle", "录制")
+            Spacer()
             if appState.recorder.isRecording {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(DesignTokens.record)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: DesignTokens.record.opacity(0.7), radius: 3)
+                    Text("录制中 · \(appState.recorder.recordedCount) 次")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(DesignTokens.textPrimary)
+                }
+                .frame(maxWidth: .infinity)
                 Button {
                     appState.stopRecording()
                 } label: {
                     Label("停止录制", systemImage: "stop.fill")
-                        .frame(minWidth: 120)
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
-                .tint(.red)
-
-                Text("已录 \(appState.recorder.recordedCount) 次点击")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .tint(DesignTokens.record)
             } else {
                 Button {
                     appState.startRecording()
                 } label: {
                     Label("开始录制", systemImage: "record.circle")
-                        .frame(minWidth: 120)
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
+                .tint(DesignTokens.brandBright)
                 .disabled(appState.player.isPlaying)
+                Text("捕获点击与拖拽")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.textTertiary)
+                    .frame(maxWidth: .infinity)
             }
+            Spacer()
+            Text("录制时在模拟器窗口上操作")
+                .font(.system(size: 9))
+                .foregroundStyle(DesignTokens.textTertiary)
+                .frame(maxWidth: .infinity)
+        }
+        .frame(minWidth: 170)
+    }
 
+    // MARK: - 录制模式：回放卡
+
+    private var replayCard: some View {
+        card {
+            cardHeader("arrow.counterclockwise", "回放")
+            Spacer()
             if let last = appState.lastRecordedSequence ?? appState.savedSequences.first {
-                Text("上次录制：\(last.points.count) 点")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 Button {
                     appState.playSequence(last)
                 } label: {
                     Label("回放上次录制", systemImage: "play.fill")
-                        .frame(minWidth: 120)
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
-                .buttonStyle(.bordered)
+                .buttonStyle(GradientButtonStyle())
                 .disabled(appState.player.isPlaying || appState.clickEngine.isRunning)
-            }
-
-            if appState.player.isPlaying {
+                Text("\(last.points.count) 点 · \(String(format: "%.1f", Double(last.durationMs) / 1000))s")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(DesignTokens.textTertiary)
+                    .frame(maxWidth: .infinity)
+            } else {
                 Button {
-                    appState.player.stop()
+                    appState.playSequence(appState.savedSequences[0])
                 } label: {
-                    Label("停止回放", systemImage: "stop.fill")
-                        .frame(minWidth: 120)
+                    Label("回放上次录制", systemImage: "play.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
-                .buttonStyle(.bordered)
-                .tint(.red)
+                .buttonStyle(GradientButtonStyle())
+                .disabled(true)
+                Text("暂无序列")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.textTertiary)
+                    .frame(maxWidth: .infinity)
             }
-
             Spacer()
-
-            Text("录制时请在模拟器窗口上操作\n点击列表中的序列即可回放")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            Button {
+                if let dir = try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                          in: .userDomainMask, appropriateFor: nil, create: true)
+                    .appendingPathComponent("QianShou/sequences", isDirectory: true) {
+                    NSWorkspace.shared.open(dir)
+                }
+            } label: {
+                Label("打开序列文件夹", systemImage: "folder")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.borderless)
+            .frame(maxWidth: .infinity)
         }
+        .frame(minWidth: 170)
+    }
+}
+
+/// 主按钮样式：品牌渐变填充 + 发光阴影 + 按下缩放
+struct GradientButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(DesignTokens.brandGradient)
+                    .shadow(color: DesignTokens.brandGlow, radius: 8)
+            )
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }

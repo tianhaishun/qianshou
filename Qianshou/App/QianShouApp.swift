@@ -9,6 +9,7 @@ struct QianShouApp: App {
             ContentView()
                 .environmentObject(appState)
         }
-        .defaultSize(width: 960, height: 640)
+        .defaultSize(width: 1160, height: 800)
+        .windowResizability(.contentMinSize)
     }
 }

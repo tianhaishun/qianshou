@@ -6,15 +6,17 @@ struct ContentView: View {
     var body: some View {
         HSplitView {
             SidebarView()
-                .frame(minWidth: 220, idealWidth: 260, maxWidth: 340)
             VStack(spacing: 0) {
                 MirrorView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black)
                 ControlPanelView()
+                    .padding(.top, 10)
             }
+            .padding(12)
+            .background(DesignTokens.bgBase)
         }
-        .frame(minWidth: 700, minHeight: 600)
+        .frame(minWidth: 980, minHeight: 640)
+        .preferredColorScheme(.dark)
         .task {
             DebugLog.log("[ContentView] task begin")
             appState.startPollingDevices()
