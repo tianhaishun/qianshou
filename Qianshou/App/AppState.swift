@@ -16,7 +16,8 @@ final class AppState: ObservableObject {
 
     // 权限状态（页面展示用）
     @Published var screenCapturePermission = MirrorCapture.hasPermission()
-    @Published var accessibilityPermission = AXIsProcessTrusted()
+    /// WDA（XCTest 触摸注入服务）运行状态
+    @Published var wdaRunning = false
 
     private var refreshTask: Task<Void, Never>?
     let windowLocator = WindowLocator()
@@ -117,7 +118,15 @@ final class AppState: ObservableObject {
     func refreshWindow() {
         windowLocator.refresh(preferredTitle: selectedDevice?.name)
         screenCapturePermission = MirrorCapture.hasPermission()
-        accessibilityPermission = AXIsProcessTrusted()
+    }
+
+    /// 检查 WDA 状态并确保会话可用（连点/回放前调用）
+    func ensureWDASession() async {
+        await WDAClient.shared.checkAlive()
+        wdaRunning = WDAClient.shared.isAlive
+        if wdaRunning {
+            try? await WDAClient.shared.ensureSession()
+        }
     }
 
     /// 镜像期间窗口位置/尺寸监控（每 1s），变化时重定位 + 用最近帧重校准
@@ -231,13 +240,15 @@ final class AppState: ObservableObject {
             errorMessage = "请先停止录制再开始连点"
             return
         }
+        guard wdaRunning else {
+            errorMessage = "WDA 未运行，无法注入触摸（请先启动 scripts/start_wda.sh）"
+            return
+        }
         clickEngine.start(
             points: clickPoints,
             intervalMs: Int(clickIntervalMs),
             loopIntervalMs: Int(clickLoopIntervalMs),
-            loops: clickLoops,
-            contentRect: { [weak self] in self?.windowLocator.window?.contentRect },
-            onActivateSimulator: { [weak self] in self?.activateSimulator() }
+            loops: clickLoops
         )
     }
 
@@ -288,11 +299,7 @@ final class AppState: ObservableObject {
             errorMessage = "请先停止录制再回放"
             return
         }
-        player.play(
-            sequence: sequence,
-            contentRect: { [weak self] in self?.windowLocator.window?.contentRect },
-            onActivateSimulator: { [weak self] in self?.activateSimulator() }
-        )
+        player.play(sequence: sequence)
     }
 
     func loadSequences() {

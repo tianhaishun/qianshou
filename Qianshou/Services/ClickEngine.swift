@@ -16,49 +16,29 @@ final class ClickEngine: ObservableObject {
     private var task: Task<Void, Never>?
 
     /// - Parameters:
-    ///   - points: 内容区相对坐标点位
+    ///   - points: 内容区相对坐标点位（0-1，XCTest 注入与窗口位置无关）
     ///   - intervalMs: 同一轮内点与点之间的间隔
     ///   - loopIntervalMs: 轮与轮之间的间隔
     ///   - loops: 总轮数（<=0 表示无限循环直到手动停止）
-    ///   - contentRect: 内容区屏幕 rect（注入前取最新）
-    ///   - onActivateSimulator: 开始前激活模拟器窗口（保证不被遮挡）
     func start(points: [ClickPoint],
                intervalMs: Int,
                loopIntervalMs: Int,
-               loops: Int,
-               contentRect: @escaping () -> CGRect?,
-               onActivateSimulator: () -> Void) {
+               loops: Int) {
         guard !isRunning, !points.isEmpty else { return }
         isRunning = true
         currentLoop = 0
         currentPointIndex = nil
         totalLoops = loops
 
-        onActivateSimulator()
-        // 等待窗口激活完成（仅第一轮开始前）
-        let activationDelay: UInt64 = 300_000_000
-
         task = Task { [weak self] in
             var loop = 0
             while !Task.isCancelled {
                 loop += 1
                 self?.currentLoop = loop
-                // 激活延迟只应用一次（首轮），不拖慢每点间隔
-                if loop == 1 {
-                    try? await Task.sleep(nanoseconds: activationDelay)
-                }
                 for (i, point) in points.enumerated() {
                     guard !Task.isCancelled else { break }
                     self?.currentPointIndex = i
-                    guard let rect = contentRect() else {
-                        self?.stop()
-                        return
-                    }
-                    let screenPoint = CGPoint(
-                        x: rect.minX + rect.width * point.x,
-                        y: rect.minY + rect.height * point.y
-                    )
-                    await Injector.click(at: screenPoint)
+                    await Injector.click(relative: CGPoint(x: point.x, y: point.y))
                     if i < points.count - 1 {
                         try? await Task.sleep(nanoseconds: UInt64(intervalMs) * 1_000_000)
                     }

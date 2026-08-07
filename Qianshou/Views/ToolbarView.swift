@@ -166,13 +166,17 @@ struct ToolbarView: View {
                         NSWorkspace.shared.open(url)
                     }
                 }
-            statusIcon(ok: appState.accessibilityPermission, systemImage: "cursorarrow.click")
-                .help(appState.accessibilityPermission ? "辅助功能已授权" : "辅助功能未授权，点击打开系统设置")
+            // WDA 触摸注入服务状态（XCTest 注入，无需辅助功能权限）
+            Image(systemName: "hand.tap.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(appState.wdaRunning ? DesignTokens.ok : DesignTokens.err)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle().fill((appState.wdaRunning ? DesignTokens.ok : DesignTokens.err).opacity(0.12))
+                )
+                .help(appState.wdaRunning ? "触摸注入服务运行中" : "触摸注入服务未运行（scripts/start_wda.sh）")
                 .onTapGesture {
-                    if !appState.accessibilityPermission,
-                       let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                        NSWorkspace.shared.open(url)
-                    }
+                    Task { await appState.ensureWDASession() }
                 }
         }
     }

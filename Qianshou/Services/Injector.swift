@@ -1,47 +1,30 @@
-import ApplicationServices
 import CoreGraphics
 import Foundation
 
-/// CGEvent 鼠标点击注入（点击模拟器窗口 = 触摸事件）
+/// 触摸注入（XCTest 路径，通过模拟器内 WDA）—— 不涉及 macOS 鼠标事件
 ///
-/// 注入在后台队列执行（事件时序用 sleep 保持，不阻塞主线程）。
+/// 输入为内容区相对坐标（0-1），内部换算为设备逻辑 pt 后调用 WDA。
+/// 模拟器窗口移动/缩放不影响注入准确性（与窗口位置无关）。
+@MainActor
 enum Injector {
 
-    /// 在屏幕坐标（pt）处注入一次点击
-    ///
-    /// 不移动真实光标：down/up 事件自带位置参数，事件投递到目标窗口，
-    /// 光标保持原位（避免回放时「抢走」用户鼠标）
-    static func click(at screenPoint: CGPoint, holdMs: Int = 50) async {
-        guard AXIsProcessTrusted() else { return }
-        await Task.detached(priority: .userInitiated) {
-            let source = CGEventSource(stateID: .hidSystemState)
-            CGEvent(mouseEventSource: source, mouseType: .leftMouseDown,
-                    mouseCursorPosition: screenPoint, mouseButton: .left)?.post(tap: .cghidEventTap)
-            usleep(useconds_t(holdMs * 1000))
-            CGEvent(mouseEventSource: source, mouseType: .leftMouseUp,
-                    mouseCursorPosition: screenPoint, mouseButton: .left)?.post(tap: .cghidEventTap)
-        }.value
+    /// 注入一次点击（内容区相对坐标）
+    static func click(relative: CGPoint) async {
+        guard let size = WDAClient.shared.screenSize else { return }
+        let x = relative.x * size.width
+        let y = relative.y * size.height
+        try? await WDAClient.shared.tap(x: x, y: y)
     }
 
-    /// 注入拖拽（按下→移动→抬起），用于滑动操作
-    ///
-    /// 同样不移动真实光标：事件自带位置
-    static func drag(from start: CGPoint, to end: CGPoint, durationMs: Int = 200, steps: Int = 20) async {
-        guard AXIsProcessTrusted(), steps > 0 else { return }
-        await Task.detached(priority: .userInitiated) {
-            let source = CGEventSource(stateID: .hidSystemState)
-            CGEvent(mouseEventSource: source, mouseType: .leftMouseDown,
-                    mouseCursorPosition: start, mouseButton: .left)?.post(tap: .cghidEventTap)
-            for step in 1...steps {
-                let t = CGFloat(step) / CGFloat(steps)
-                let p = CGPoint(x: start.x + (end.x - start.x) * t,
-                                y: start.y + (end.y - start.y) * t)
-                CGEvent(mouseEventSource: source, mouseType: .leftMouseDragged,
-                        mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
-                usleep(useconds_t(durationMs * 1000 / steps))
-            }
-            CGEvent(mouseEventSource: source, mouseType: .leftMouseUp,
-                    mouseCursorPosition: end, mouseButton: .left)?.post(tap: .cghidEventTap)
-        }.value
+    /// 注入拖拽（起点/终点均为内容区相对坐标）
+    static func drag(fromRel: CGPoint, toRel: CGPoint, durationMs: Int = 200) async {
+        guard let size = WDAClient.shared.screenSize else { return }
+        let fx = fromRel.x * size.width
+        let fy = fromRel.y * size.height
+        let tx = toRel.x * size.width
+        let ty = toRel.y * size.height
+        // WDA 要求 duration 0.5-60s；短拖拽按 0.5s 下限
+        let duration = max(Double(durationMs) / 1000, 0.5)
+        try? await WDAClient.shared.drag(fromX: fx, fromY: fy, toX: tx, toY: ty, duration: duration)
     }
 }

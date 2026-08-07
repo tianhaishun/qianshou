@@ -26,6 +26,13 @@ struct ContentView: View {
         .task {
             DebugLog.log("[ContentView] task begin")
             appState.startPollingDevices()
+            // 启动时检测 WDA（XCTest 触摸注入服务）
+            await appState.ensureWDASession()
+            // 周期刷新 WDA 状态
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                await appState.ensureWDASession()
+            }
         }
         .onChange(of: appState.screenCapturePermission) { _, granted in
             // 屏幕录制权限从拒绝变为授权后自动恢复镜像

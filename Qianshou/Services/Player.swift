@@ -11,16 +11,11 @@ final class Player: ObservableObject {
 
     /// - Parameters:
     ///   - sequence: 要回放的序列
-    ///   - contentRect: 内容区屏幕 rect（回放前取最新）
-    ///   - onActivateSimulator: 回放开始前激活模拟器
-    func play(sequence: ClickSequence,
-              contentRect: @escaping () -> CGRect?,
-              onActivateSimulator: () -> Void) {
+    func play(sequence: ClickSequence) {
         guard !isPlaying, !sequence.points.isEmpty else { return }
         isPlaying = true
         progressMs = 0
 
-        onActivateSimulator()
         task = Task { [weak self] in
             let start = ContinuousClock.now
             for point in sequence.points {
@@ -28,27 +23,17 @@ final class Player: ObservableObject {
                 // 等待到该点的时间偏移
                 let target = start.advanced(by: .milliseconds(point.offsetMs))
                 try? await Task.sleep(until: target, clock: .continuous)
-                guard !Task.isCancelled,
-                      let rect = contentRect() else { break }
+                guard !Task.isCancelled else { break }
 
                 switch point.kind {
                 case .click:
-                    let screenPoint = CGPoint(
-                        x: rect.minX + rect.width * point.x,
-                        y: rect.minY + rect.height * point.y
-                    )
-                    await Injector.click(at: screenPoint)
+                    await Injector.click(relative: CGPoint(x: point.x, y: point.y))
                 case .drag:
-                    let startPt = CGPoint(
-                        x: rect.minX + rect.width * point.x,
-                        y: rect.minY + rect.height * point.y
+                    await Injector.drag(
+                        fromRel: CGPoint(x: point.x, y: point.y),
+                        toRel: CGPoint(x: point.endX ?? point.x, y: point.endY ?? point.y),
+                        durationMs: point.durationMs ?? 200
                     )
-                    let endPt = CGPoint(
-                        x: rect.minX + rect.width * (point.endX ?? point.x),
-                        y: rect.minY + rect.height * (point.endY ?? point.y)
-                    )
-                    await Injector.drag(from: startPt, to: endPt,
-                                        durationMs: point.durationMs ?? 200)
                 }
                 self?.progressMs = point.offsetMs
                 DebugLog.log("[Player] replayed @\(point.offsetMs)ms kind=\(point.kind.rawValue)")
