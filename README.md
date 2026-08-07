@@ -18,9 +18,10 @@
 The iOS Simulator turns macOS mouse events into touch events. Qianshou exploits this: **click injection is just a `CGEvent`** — no USB pairing, no code signing, no WebDriverAgent, no remote protocols. A native macOS app, zero third-party dependencies, ~1,700 lines of Swift.
 
 - **Live mirror** — ScreenCaptureKit window capture at 60fps, zoom 1–4×, drag to pan
-- **Auto-click** — click on the mirrored screen to place points, configure interval/loops, inject clicks into the simulator
+- **Auto-click** — click on the mirrored screen to place points, configure interval/loops, inject touches via XCTest
 - **Record & replay** — a global event tap records your clicks *and drags* with precise timing; sequences persist as JSON and replay exactly as recorded
-- **Simulator management** — list, boot, shutdown from the sidebar, 2s auto-refresh
+- **Touch injection without touching your mouse** — replay drives the simulator through WebDriverAgent running inside the simulator (XCTest-level touch synthesis), so your cursor never moves
+- **Simulator management** — list, boot, shutdown from the toolbar menu, 2s auto-refresh
 
 ## Quick start
 
@@ -35,14 +36,16 @@ open build/Debug/Qianshou.app   # or the DerivedData product
 
 **Or download the latest release** from [Releases](https://github.com/tianhaishun/qianshou/releases) (coming soon).
 
-### First-run permissions
+### First-run setup
 
-Two system permissions are needed (shown live in the sidebar):
+1. **Start the touch-injection service** (once per simulator boot):
+   ```bash
+   ./Scripts/start_wda.sh
+   ```
+   Builds WebDriverAgent for the simulator (no code signing needed) and keeps it running on `localhost:8100`. The toolbar shows its status — tap to re-check.
+2. **Screen Recording permission** (system prompt) for the live mirror.
 
-| Permission | Purpose |
-|---|---|
-| **Screen Recording** | capture the simulator window for the mirror |
-| **Accessibility** | inject clicks and listen for recording |
+No Accessibility permission needed: touch injection goes through XCTest inside the simulator, not macOS mouse events.
 
 ## Usage
 
