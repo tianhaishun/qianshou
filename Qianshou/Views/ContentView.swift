@@ -1,21 +1,27 @@
 import SwiftUI
 
+/// 沉浸式布局：顶部工具栏 + 镜像主导区 + 底部浮动操作条
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
-        HSplitView {
-            SidebarView()
-            VStack(spacing: 0) {
-                MirrorView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                ControlPanelView()
-                    .padding(.top, 10)
-            }
-            .padding(12)
-            .background(DesignTokens.bgBase)
+        VStack(spacing: 0) {
+            ToolbarView()
+            MirrorView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+            BottomBarView()
         }
-        .frame(minWidth: 980, minHeight: 640)
+        .overlay(alignment: .top) {
+            if let toast = appState.toast {
+                ToastView(message: toast)
+                    .padding(.top, 54)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .frame(minWidth: 900, minHeight: 600)
+        .background(DesignTokens.bgBase)
         .preferredColorScheme(.dark)
         .task {
             DebugLog.log("[ContentView] task begin")

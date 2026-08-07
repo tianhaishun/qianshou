@@ -9,40 +9,54 @@ struct MirrorView: View {
     @State private var isHovering = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            mirrorHeader
-            GeometryReader { geo in
-                ZStack {
-                    if let frame = appState.mirrorFrame {
-                        FrameImageView(frame: frame) { viewPoint in
-                            handleTap(at: viewPoint, frame: frame, viewSize: geo.size)
-                        } onPan: { delta in
-                            offset = CGSize(width: offset.width + delta.width,
-                                            height: offset.height + delta.height)
-                        } onDoubleClick: {
-                            zoom = 1
-                            offset = .zero
-                        }
-                        PointOverlay(frame: frame, viewSize: geo.size, zoom: zoom, offset: offset)
-                    } else if appState.simulatorWindow != nil {
-                        VStack(spacing: 8) {
-                            ProgressView()
-                            Text("正在连接镜像…")
-                                .foregroundStyle(DesignTokens.textSecondary)
-                        }
-                    } else {
-                        mirrorEmptyState
+        GeometryReader { geo in
+            ZStack {
+                if let frame = appState.mirrorFrame {
+                    FrameImageView(frame: frame) { viewPoint in
+                        handleTap(at: viewPoint, frame: frame, viewSize: geo.size)
+                    } onPan: { delta in
+                        offset = CGSize(width: offset.width + delta.width,
+                                        height: offset.height + delta.height)
+                    } onDoubleClick: {
+                        zoom = 1
+                        offset = .zero
                     }
+                    PointOverlay(frame: frame, viewSize: geo.size, zoom: zoom, offset: offset)
+                } else if appState.simulatorWindow != nil {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                        Text("正在连接镜像…")
+                            .foregroundStyle(DesignTokens.textSecondary)
+                    }
+                } else {
+                    mirrorEmptyState
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(DesignTokens.bgSunken)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DesignTokens.bgSunken)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isHovering ? DesignTokens.borderHover : DesignTokens.borderCard, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.4), radius: 28, y: 10)
+            .overlay(alignment: .topLeading) {
+                deviceCapsule
+                    .padding(12)
+            }
+            .overlay(alignment: .topTrailing) {
+                if appState.clickEngine.isRunning {
+                    runningChip
+                        .padding(12)
+                }
             }
             .overlay(alignment: .bottom) {
                 zoomControl
             }
         }
-        .padding(12)
-        .background(cardBackground)
+        .onHover { hovering in
+            isHovering = hovering
+        }
         .onAppear {
             DebugLog.log("[MirrorView] onAppear")
             Task { await appState.startMirroring() }
@@ -52,59 +66,44 @@ struct MirrorView: View {
         }
     }
 
-    // MARK: - 卡片
+    // MARK: - 悬浮元素
 
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: DesignTokens.cornerRadius)
-            .fill(DesignTokens.bgCard)
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignTokens.cornerRadius)
-                    .stroke(isHovering ? DesignTokens.borderHover : DesignTokens.borderCard, lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.35), radius: 24, y: 8)
-            .shadow(color: isHovering ? DesignTokens.brandGlow : .clear, radius: 12)
-            .animation(DesignTokens.cardHover, value: isHovering)
+    private var deviceCapsule: some View {
+        HStack(spacing: 6) {
+            if let window = appState.simulatorWindow {
+                StatusDot(isBooted: true)
+                Text(window.title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignTokens.brandBright)
+                Text("已启动")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.ok)
+            } else {
+                Text("未连接")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignTokens.textTertiary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule().fill(.ultraThinMaterial)
+                .overlay(Capsule().stroke(DesignTokens.borderCard, lineWidth: 1))
+        )
     }
 
-    private var mirrorHeader: some View {
-        HStack(spacing: 8) {
-            if let window = appState.simulatorWindow {
-                HStack(spacing: 6) {
-                    StatusDot(isBooted: true)
-                    Text(window.title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(DesignTokens.brandBright)
-                    Text("已启动")
-                        .font(.system(size: 10))
-                        .foregroundStyle(DesignTokens.ok)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule().fill(DesignTokens.brandTint)
-                        .overlay(Capsule().stroke(DesignTokens.brandBright.opacity(0.3), lineWidth: 1))
-                )
-            }
-            if appState.clickEngine.isRunning {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(DesignTokens.err)
-                        .frame(width: 6, height: 6)
-                        .opacity(0.9)
-                    Text("连点中 · 第 \(appState.clickEngine.currentLoop)/\(appState.clickEngine.totalLoops) 轮")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(DesignTokens.textPrimary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(DesignTokens.bgCardRaised))
-            }
-            Spacer()
+    private var runningChip: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(DesignTokens.err)
+                .frame(width: 6, height: 6)
+            Text("第 \(appState.clickEngine.currentLoop)/\(appState.clickEngine.totalLoops) 轮")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(DesignTokens.textPrimary)
         }
-        .padding(.bottom, 10)
-        .onHover { hovering in
-            isHovering = hovering
-        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(.ultraThinMaterial))
     }
 
     private var mirrorEmptyState: some View {

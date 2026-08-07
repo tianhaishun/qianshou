@@ -11,6 +11,8 @@ final class AppState: ObservableObject {
     @Published var isRefreshingDevices = false
     @Published var errorMessage: String?
     @Published var mirrorFrame: CGImage?
+    /// 顶部 toast 反馈（F8 启停等全局操作）
+    @Published var toast: String?
 
     // 权限状态（页面展示用）
     @Published var screenCapturePermission = MirrorCapture.hasPermission()
@@ -19,6 +21,15 @@ final class AppState: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     let windowLocator = WindowLocator()
     private var mirrorCapture: MirrorCapture?
+
+    // MARK: - 全局模式（工具栏与底部条共享）
+
+    enum PanelMode: String {
+        case clicker
+        case recorder
+    }
+
+    @Published var mode: PanelMode = .clicker
 
     // MARK: - 连点状态
 
@@ -303,8 +314,10 @@ final class AppState: ObservableObject {
                 guard let self else { return }
                 if self.clickEngine.isRunning {
                     self.stopClicking()
+                    self.showToast("连点已停止")
                 } else if !self.clickPoints.isEmpty {
                     self.startClicking()
+                    self.showToast("连点开始 · \(self.clickPoints.count) 个点位")
                 }
             }
             if !ok {
@@ -314,6 +327,19 @@ final class AppState: ObservableObject {
             }
         } else {
             hotKey.uninstall()
+        }
+    }
+
+    /// 显示顶部 toast（2 秒后自动消失）
+    func showToast(_ message: String) {
+        withAnimation(.easeOut(duration: 0.25)) {
+            toast = message
+        }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            withAnimation(.easeOut(duration: 0.3)) {
+                self?.toast = nil
+            }
         }
     }
 

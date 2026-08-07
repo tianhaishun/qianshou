@@ -39,3 +39,14 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  QianshouUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests
+    dependencies:
+      - target: Qianshou
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Qianshou

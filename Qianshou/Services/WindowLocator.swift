@@ -1,3 +1,5 @@
+import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -65,6 +67,54 @@ final class WindowLocator {
         if let preferredTitle, let window, window.title != preferredTitle {
             // 首选设备窗口不可见时回退到别的模拟器窗口（用户可能混淆注入目标）
             DebugLog.log("[WindowLocator] 首选窗口「\(preferredTitle)」不可见，回退到「\(window.title)」")
+        }
+        // AX 兜底：CGWindowList 在无屏幕录制权限时看不到其他 App 的窗口，
+        // 用 AX API（不受该权限限制）定位 Simulator 窗口
+        if window == nil {
+            findViaAX(preferredTitle: preferredTitle)
+        }
+    }
+
+    /// AX API 兜底定位（无屏幕录制权限时 CGWindowList 不可用）
+    private func findViaAX(preferredTitle: String?) {
+        guard let app = NSWorkspace.shared.runningApplications
+            .first(where: { $0.localizedName == "Simulator" }) else { return }
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return }
+
+        var fallback: SimulatorWindow?
+        for w in windows {
+            var titleRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(w, kAXTitleAttribute as CFString, &titleRef) == .success,
+                  let title = titleRef as? String, !title.isEmpty else { continue }
+            var posRef: CFTypeRef?
+            var sizeRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(w, kAXPositionAttribute as CFString, &posRef) == .success,
+                  AXUIElementCopyAttributeValue(w, kAXSizeAttribute as CFString, &sizeRef) == .success else { continue }
+            var origin = CGPoint.zero
+            var size = CGSize.zero
+            AXValueGetValue(posRef as! AXValue, .cgPoint, &origin)
+            AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+            let rect = CGRect(origin: origin, size: size)
+            let candidate = SimulatorWindow(
+                windowID: 0,
+                frame: rect,
+                title: title,
+                contentRect: rect.insetBy(dx: 0, dy: 0).withTopInset(estimatedTopInset),
+                topInset: estimatedTopInset
+            )
+            if let preferredTitle, title == preferredTitle {
+                window = candidate
+                DebugLog.log("[WindowLocator] AX 兜底定位到「\(title)」")
+                return
+            }
+            fallback = fallback ?? candidate
+        }
+        if let fallback {
+            window = fallback
+            DebugLog.log("[WindowLocator] AX 兜底定位到「\(fallback.title)」（无屏幕录制权限，窗口 ID 不可用）")
         }
     }
 
