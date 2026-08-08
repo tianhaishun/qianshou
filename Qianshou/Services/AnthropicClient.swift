@@ -161,13 +161,15 @@ final class AnthropicClient {
     }
 
     var apiKey: String = ""
+    /// OAuth Bearer Token（ANTHROPIC_AUTH_TOKEN / ant profile）
+    var oauthToken: String = ""
     var model: String = "claude-opus-4-8"
 
     private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
 
     /// 单轮请求（含工具定义、系统提示、图片）
     func chat(system: String, messages: [Message], tools: [ToolDef], maxTokens: Int = 4096) async throws -> ChatResponse {
-        guard !apiKey.isEmpty else { throw ClientError.noAPIKey }
+        guard !apiKey.isEmpty || !oauthToken.isEmpty else { throw ClientError.noAPIKey }
 
         var body: [String: Any] = [
             "model": model,
@@ -183,7 +185,13 @@ final class AnthropicClient {
         request.httpMethod = "POST"
         request.timeoutInterval = 120
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        if !oauthToken.isEmpty {
+            // OAuth Bearer 认证（ant CLI / AUTH_TOKEN）
+            request.setValue("Bearer \(oauthToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        } else {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        }
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

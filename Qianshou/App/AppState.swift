@@ -28,6 +28,16 @@ final class AppState: ObservableObject {
     init() {
         startPollingDevices()
         loadSequences()
+        // 自动探测本地 AI 凭据（open-design 式：复用本地 CLI/模型配置）
+        resolveLocalCredentials()
+        // 启动即检查 WDA 并周期刷新（v4 无 ContentView task）
+        Task { [weak self] in
+            await self?.ensureWDASession()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                await self?.ensureWDASession()
+            }
+        }
     }
 
     // MARK: - 全局模式（工具栏与底部条共享）
@@ -60,6 +70,20 @@ final class AppState: ObservableObject {
     @Published var aiAPIKey: String = UserDefaults.standard.string(forKey: "aiAPIKey") ?? ""
     @Published var aiModel: String = UserDefaults.standard.string(forKey: "aiModel") ?? "claude-opus-4-8"
     @Published var showAIPanel = false
+    /// AI 凭据来源（自动检测的环境变量/ant profile / 手动配置）
+    @Published var aiCredentialSource: String = "未配置"
+
+    /// 自动探测本地凭据（环境变量 / ant CLI 配置），无需用户重新配置
+    func resolveLocalCredentials() {
+        let resolved = AICredentials.resolve()
+        DebugLog.log("[AppState] AI 凭据探测: \(resolved.source) valid=\(resolved.isValid)")
+        guard resolved.isValid else { return }
+        aiAgent.configure(apiKey: resolved.apiKey ?? "",
+                          oauthToken: resolved.oauthToken ?? "",
+                          model: aiModel)
+        aiCredentialSource = resolved.source
+        aiAPIKey = "auto:\(resolved.source)"
+    }
 
     func saveAISettings() {
         // 轻量保存：只写 UserDefaults（AI 配置在 run 时由 AIAgent.configure 应用，

@@ -16,6 +16,9 @@ final class AIAgent: ObservableObject {
     }
 
     @Published private(set) var isRunning = false
+
+    /// 是否已有可用凭据（API Key 或 OAuth Token）
+    var hasCredentials: Bool { !client.apiKey.isEmpty || !client.oauthToken.isEmpty }
     @Published private(set) var steps: [Step] = []
     @Published private(set) var lastScreenshot: String?   // base64
     @Published var pendingQuestion: String?
@@ -25,17 +28,16 @@ final class AIAgent: ObservableObject {
     private var messages: [AnthropicClient.Message] = []
     private var task: Task<Void, Never>?
 
-    /// 配置 API Key 与模型
-    func configure(apiKey: String, model: String) {
+    /// 配置凭据与模型（支持 API Key / OAuth Token —— 本地自动探测）
+    func configure(apiKey: String = "", oauthToken: String = "", model: String = "claude-opus-4-8") {
         client.apiKey = apiKey
+        client.oauthToken = oauthToken
         client.model = model
     }
 
-    /// 开始执行任务（自然语言目标）
-    func run(goal: String, apiKey: String, model: String) {
-        guard !isRunning else { return }
-        configure(apiKey: apiKey, model: model)
-        guard !apiKey.isEmpty else { return }
+    /// 开始执行任务（自然语言目标；凭据已在 configure 配置）
+    func run(goal: String) {
+        guard !isRunning, hasCredentials else { return }
 
         isRunning = true
         finalSummary = nil
@@ -203,6 +205,7 @@ final class AIAgent: ObservableObject {
             ]
             let userMsg = AnthropicClient.Message(role: "user", content: userContent)
 
+            DebugLog.log("[AIAgent] 步骤 \(step+1)/30：观察完成 \(current.elements.split(separator: "\n").count) 元素，请求 Claude")
             let response: AnthropicClient.ChatResponse
             do {
                 response = try await client.chat(
@@ -213,6 +216,7 @@ final class AIAgent: ObservableObject {
             } catch {
                 // 手动补充/停止会取消当前请求 —— 静默退出，不报错
                 if Task.isCancelled { return }
+                DebugLog.log("[AIAgent] API 失败: \(error.localizedDescription)")
                 addStep("AI 请求失败", detail: error.localizedDescription, isAction: false)
                 return
             }

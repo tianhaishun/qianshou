@@ -133,7 +133,10 @@ No Accessibility permission needed: touch injection goes through XCTest inside t
 
 ### AI driving
 
-Add your Anthropic API key in the PILOT panel settings (Opus 4.8 / Sonnet 5 / Fable 5). Keys stay in your local UserDefaults.
+**Zero-config by default** — Qianshou reuses credentials you already have, in order:
+`ANTHROPIC_API_KEY` env var → `ANTHROPIC_AUTH_TOKEN` env var → `ant auth login` profile (the `~/.config/anthropic/` CLI config). The PILOT panel shows which source was auto-detected.
+
+No local credentials? Set `ANTHROPIC_API_KEY`, or run `ant auth login` once — no per-app setup needed. Model: Opus 4.8 / Sonnet 5 / Fable 5.
 
 ---
 

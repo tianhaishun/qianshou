@@ -198,6 +198,7 @@ struct AIPilotPanel: View {
                     ForEach(AITaskTemplate.all) { template in
                         Button {
                             goal = template.prompt
+                            DebugLog.log("[AIPilotPanel] 模板填充: \(template.title) len=\(template.prompt.count)")
                         } label: {
                             Text(template.title)
                                 .font(DesignTokens.ui(10, weight: .medium))
@@ -228,8 +229,13 @@ struct AIPilotPanel: View {
                 .buttonStyle(Controls.PrimaryButtonStyle())
                 .disabled(goal.trimmingCharacters(in: .whitespaces).isEmpty || !appState.wdaRunning)
                 .opacity(goal.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
-                if appState.aiAPIKey.isEmpty {
-                    Text("未配置 API Key(⚙ 设置中填写)")
+                if appState.aiAPIKey.hasPrefix("auto:") {
+                    Text("自动检测: \(appState.aiCredentialSource)")
+                        .font(DesignTokens.mono(9))
+                        .foregroundStyle(DesignTokens.ok)
+                        .lineSpacing(2)
+                } else if appState.aiAPIKey.isEmpty {
+                    Text("未检测到本地凭据(设置 ANTHROPIC_API_KEY 或 ant auth login)")
                         .font(DesignTokens.ui(10))
                         .foregroundStyle(DesignTokens.err)
                         .lineSpacing(2)
@@ -256,7 +262,7 @@ struct AIPilotPanel: View {
                         .foregroundStyle(DesignTokens.textSecondary)
                         .lineSpacing(2)
                     Spacer()
-                    Text(appState.aiAPIKey.isEmpty ? "未配置" : "已配置")
+                    Text(appState.aiAgent.hasCredentials ? "可用" : "未配置")
                         .font(DesignTokens.mono(9, weight: .medium))
                         .foregroundStyle(appState.aiAPIKey.isEmpty ? DesignTokens.err : DesignTokens.ok)
                     Image(systemName: showSettings ? "chevron.up" : "chevron.down")
@@ -307,8 +313,9 @@ struct AIPilotPanel: View {
 
     private func submitGoal() {
         let text = goal.trimmingCharacters(in: .whitespacesAndNewlines)
+        DebugLog.log("[AIPilotPanel] submitGoal len=\(text.count) wda=\(appState.wdaRunning) cred=\(appState.aiAgent.hasCredentials)")
         guard !text.isEmpty else { return }
-        appState.aiAgent.run(goal: text, apiKey: appState.aiAPIKey, model: appState.aiModel)
+        appState.aiAgent.run(goal: text)
         goal = ""
     }
 
