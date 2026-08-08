@@ -108,6 +108,30 @@ final class WDAClient {
         try await post("wda/pressButton", body: ["name": "home"])
     }
 
+    /// 截取设备屏幕（base64 PNG，AI 视觉用）
+    func screenshotBase64() async throws -> String {
+        guard let sessionID else { throw WDAError.sessionFailed("无会话") }
+        let url = baseURL.appendingPathComponent("session/\(sessionID)/screenshot")
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let value = json["value"] as? String else {
+            throw WDAError.requestFailed("截图解析失败")
+        }
+        return value
+    }
+
+    /// 元素树（XML）——AI 决策用
+    func sourceXML() async throws -> String {
+        guard let sessionID else { throw WDAError.sessionFailed("无会话") }
+        let url = baseURL.appendingPathComponent("session/\(sessionID)/source")
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let value = json["value"] as? String else {
+            throw WDAError.requestFailed("元素树解析失败")
+        }
+        return value
+    }
+
     private func post(_ path: String, body: [String: Any]) async throws {
         guard let sessionID else { throw WDAError.sessionFailed("无会话") }
         var request = URLRequest(url: baseURL.appendingPathComponent("session/\(sessionID)/\(path)"))

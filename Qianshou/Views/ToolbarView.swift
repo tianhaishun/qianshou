@@ -18,6 +18,40 @@ struct ToolbarView: View {
                 .frame(height: 18)
                 .overlay(DesignTokens.borderCard)
 
+            // AI 驾驶入口
+            Button {
+                appState.showAIPanel = true
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 11))
+                    Text("AI 驾驶")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(DesignTokens.brandBright)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(DesignTokens.brandTint)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(DesignTokens.brandBright.opacity(0.4), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $appState.showAIPanel, arrowEdge: .bottom) {
+                AIPanelView()
+                    .environmentObject(appState)
+            }
+            .accessibilityLabel("打开 AI 驾驶")
+            .help("用自然语言指挥模拟器（AI 模型模式 + 手动补充模式）")
+
+            Divider()
+                .frame(height: 18)
+                .overlay(DesignTokens.borderCard)
+
             permissionStatus
             f8Status
         }

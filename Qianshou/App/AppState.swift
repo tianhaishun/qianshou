@@ -47,6 +47,19 @@ final class AppState: ObservableObject {
     @Published var savedSequences: [ClickSequence] = []
     @Published var lastRecordedSequence: ClickSequence?
 
+    // MARK: - AI 驾驶
+
+    let aiAgent = AIAgent()
+    @Published var aiAPIKey: String = UserDefaults.standard.string(forKey: "aiAPIKey") ?? ""
+    @Published var aiModel: String = UserDefaults.standard.string(forKey: "aiModel") ?? "claude-opus-4-8"
+    @Published var showAIPanel = false
+
+    func saveAISettings() {
+        UserDefaults.standard.set(aiAPIKey, forKey: "aiAPIKey")
+        UserDefaults.standard.set(aiModel, forKey: "aiModel")
+        aiAgent.configure(apiKey: aiAPIKey, model: aiModel)
+    }
+
     // MARK: - 全局热键
 
     private let hotKey = GlobalHotKey()

@@ -18,6 +18,8 @@ struct ConfigPanelView: View {
                     case .recorder:
                         sequencesSection
                     }
+                    Divider().overlay(DesignTokens.borderCard)
+                    aiSettingsSection
                 }
                 .padding(14)
             }
@@ -198,6 +200,42 @@ struct ConfigPanelView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+        }
+    }
+
+    // MARK: - AI 设置
+
+    private var aiSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DesignTokens.brandBright)
+                Text("AI 驾驶")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignTokens.textSecondary)
+                Spacer()
+                Text(appState.aiAPIKey.isEmpty ? "未配置" : "已配置")
+                    .font(.system(size: 9))
+                    .foregroundStyle(appState.aiAPIKey.isEmpty ? DesignTokens.err : DesignTokens.ok)
+            }
+            SecureField("Anthropic API Key", text: $appState.aiAPIKey)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 6).fill(DesignTokens.bgSunken))
+                .onChange(of: appState.aiAPIKey) { _, _ in appState.saveAISettings() }
+            Picker("模型", selection: $appState.aiModel) {
+                Text("Opus 4.8").tag("claude-opus-4-8")
+                Text("Sonnet 5").tag("claude-sonnet-5")
+                Text("Fable 5").tag("claude-fable-5")
+            }
+            .pickerStyle(.menu)
+            .font(.system(size: 11))
+            .onChange(of: appState.aiModel) { _, _ in appState.saveAISettings() }
+            Text("用自然语言指挥模拟器：AI 模型模式自主执行，运行中可手动补充指令")
+                .font(.system(size: 9))
+                .foregroundStyle(DesignTokens.textTertiary)
         }
     }
 
