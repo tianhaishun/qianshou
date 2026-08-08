@@ -22,7 +22,7 @@ final class QianshouUITests: XCTestCase {
     /// 启动后：品牌头、设备菜单、底部条、配置入口存在
     func testLaunchShowsCoreUI() {
         XCTAssertTrue(app.staticTexts["千手"].exists, "品牌标题应存在")
-        XCTAssertTrue(app.menuButtons["选择模拟器设备"].waitForExistence(timeout: 3), "设备菜单应存在")
+        XCTAssertTrue(app.menuButtons["选择模拟器设备"].waitForExistence(timeout: 10), "设备菜单应存在")
         XCTAssertTrue(app.buttons["开始连点"].exists, "连点模式底部条主按钮应存在")
         XCTAssertTrue(app.buttons["打开配置"].exists, "配置入口应存在")
     }

@@ -23,4 +23,6 @@ jobs:
         run: xcodebuild -project Qianshou.xcodeproj -scheme Qianshou -configuration Debug -destination 'platform=macOS' build
 
       - name: Test
+        # 单元测试 22 项必过；UI 测试的结构项必过，
+        # 交互项在 CI 无头环境自动 skip（macOS XCUITest 点击在 CI 不可靠），本地人工验证
         run: xcodebuild -project Qianshou.xcodeproj -scheme Qianshou -destination 'platform=macOS' test
