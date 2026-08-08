@@ -18,10 +18,11 @@
 The iOS Simulator turns macOS mouse events into touch events. Qianshou exploits this: **click injection is just a `CGEvent`** — no USB pairing, no code signing, no WebDriverAgent, no remote protocols. A native macOS app, zero third-party dependencies, ~1,700 lines of Swift.
 
 - **Live mirror** — ScreenCaptureKit window capture at 60fps, zoom 1–4×, drag to pan
+- **AI driving** — describe a goal in plain language ("open Settings and enable dark mode"); the agent looks at the screen, decides, and operates the simulator with Claude (vision + element tree). Interrupt it anytime with a manual instruction mid-run
 - **Auto-click** — click on the mirrored screen to place points, configure interval/loops, inject touches via XCTest
 - **Record & replay** — a global event tap records your clicks *and drags* with precise timing; sequences persist as JSON and replay exactly as recorded
 - **Touch injection without touching your mouse** — replay drives the simulator through WebDriverAgent running inside the simulator (XCTest-level touch synthesis), so your cursor never moves
-- **Simulator management** — list, boot, shutdown from the toolbar menu, 2s auto-refresh
+- **Simulator management** — list, boot, shutdown, install `.app`/`.ipa` from the toolbar menu, 2s auto-refresh
 
 ## Quick start
 
@@ -49,14 +50,20 @@ No Accessibility permission needed: touch injection goes through XCTest inside t
 
 ## Usage
 
-1. **Boot a simulator** (right-click a device in the sidebar → 启动, or `xcrun simctl boot <udid>`) and keep its window visible
-2. **Place points** — click on the mirrored screen; numbered markers appear (blue circle, red while being clicked)
-3. **Auto-click** — set per-point interval, per-round interval, and round count, then hit **开始连点**
-4. **Record & replay** — switch to 录制 mode, record your clicks/drags on the simulator window, stop, then hit **回放上次录制**. Sequences are auto-saved to `~/Library/Application Support/QianShou/sequences/` and survive restarts
+1. **Boot a simulator** (toolbar device menu, or `xcrun simctl boot <udid>`) and keep its window visible
+2. **AI driving** — hit the ✨ AI 驾驶 button, enter your goal, and let the agent operate the simulator. It pauses to ask when it needs input (e.g. credentials); you can also insert manual instructions mid-run
+3. **Place points** — click on the mirrored screen; numbered markers appear
+4. **Auto-click** — set per-point interval, per-round interval, and round count, then hit **开始连点**
+5. **Record & replay** — switch to 录制 mode, record clicks/drags on the simulator window, stop, then hit **回放**. Sequences are auto-saved to `~/Library/Application Support/QianShou/sequences/`
+6. **Install apps** — toolbar device menu → 安装 App… (`.app` or `.ipa`), auto-launched after install
+
+### AI driving setup
+
+Add your Anthropic API key in ⚙ → AI 驾驶 (model: Opus 4.8 / Sonnet 5 / Fable 5). Keys are stored in UserDefaults on your machine only.
 
 ### Global hotkey
 
-Toggle **F8 启停连点** in the sidebar to start/stop auto-clicking from any app (requires Accessibility).
+Toggle **F8** in the toolbar to start/stop auto-clicking from any app.
 
 ## Design notes
 
