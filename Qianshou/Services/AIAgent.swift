@@ -29,9 +29,10 @@ final class AIAgent: ObservableObject {
     private var task: Task<Void, Never>?
 
     /// 配置凭据与模型（支持 API Key / OAuth Token —— 本地自动探测）
-    func configure(apiKey: String = "", oauthToken: String = "", model: String = "claude-opus-4-8") {
+    func configure(apiKey: String = "", oauthToken: String = "", baseURL: String = "", model: String = "claude-opus-4-8") {
         client.apiKey = apiKey
         client.oauthToken = oauthToken
+        client.baseURL = baseURL
         client.model = model
     }
 
@@ -245,6 +246,7 @@ final class AIAgent: ObservableObject {
             var results: [AnthropicClient.ContentBlock] = []
             for block in toolUses {
                 guard case .toolUse(let id, let name, let input) = block else { continue }
+                DebugLog.log("[AIAgent] 执行工具: \(name) input=\(input)")
                 let result = await executeTool(name: name, input: input)
                 addStep(stepSummary(name: name, input: input), detail: result, isAction: true)
                 results.append(.toolResult(toolUseID: id, content: result))

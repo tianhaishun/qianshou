@@ -80,7 +80,10 @@ final class AppState: ObservableObject {
         guard resolved.isValid else { return }
         aiAgent.configure(apiKey: resolved.apiKey ?? "",
                           oauthToken: resolved.oauthToken ?? "",
-                          model: aiModel)
+                          baseURL: resolved.baseURL ?? "",
+                          model: resolved.model ?? aiModel)
+        // 探测到配置的模型时同步展示
+        if let m = resolved.model { aiModel = m }
         aiCredentialSource = resolved.source
         aiAPIKey = "auto:\(resolved.source)"
     }

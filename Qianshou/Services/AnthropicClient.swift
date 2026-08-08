@@ -96,7 +96,14 @@ final class AnthropicClient {
     struct AnyCodable: Codable {
         let value: Any
 
-        init(_ value: Any) { self.value = value }
+        init(_ value: Any) {
+            // 解包已包装的 AnyCodable（嵌套字典 mapValues 会双重包装）
+            if let wrapped = value as? AnyCodable {
+                self.value = wrapped.value
+            } else {
+                self.value = value
+            }
+        }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.singleValueContainer()
@@ -118,6 +125,11 @@ final class AnthropicClient {
             case let v as String: try c.encode(v)
             case let v as [Any]: try c.encode(v.map(AnyCodable.init))
             case let v as [String: Any]: try c.encode(v.mapValues(AnyCodable.init))
+            case let v as [String: AnyCodable]: try c.encode(v)
+            case let v as [String: String]: try c.encode(v)
+            case let v as [String: Int]: try c.encode(v)
+            case let v as [String: Double]: try c.encode(v)
+            case let v as [String: Bool]: try c.encode(v)
             default: try c.encodeNil()
             }
         }
@@ -161,11 +173,20 @@ final class AnthropicClient {
     }
 
     var apiKey: String = ""
-    /// OAuth Bearer Token（ANTHROPIC_AUTH_TOKEN / ant profile）
+    /// OAuth Bearer Token（ANTHROPIC_AUTH_TOKEN / Claude Code / ant profile）
     var oauthToken: String = ""
+    /// 自定义端点（ANTHROPIC_BASE_URL —— DeepSeek 等 Anthropic 兼容中转）
+    var baseURL: String = ""
     var model: String = "claude-opus-4-8"
 
-    private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    private var endpoint: URL {
+        if !baseURL.isEmpty, let url = URL(string: baseURL) {
+            // 兼容两种配置：指向 /v1/messages 的完整端点 或 根地址
+            if url.path.contains("messages") { return url }
+            return url.appendingPathComponent("v1/messages")
+        }
+        return URL(string: "https://api.anthropic.com/v1/messages")!
+    }
 
     /// 单轮请求（含工具定义、系统提示、图片）
     func chat(system: String, messages: [Message], tools: [ToolDef], maxTokens: Int = 4096) async throws -> ChatResponse {
