@@ -80,6 +80,17 @@ struct ToolbarView: View {
                 }
             }
             Divider()
+            Button("安装 App…") {
+                let panel = NSOpenPanel()
+                panel.allowedContentTypes = [.init(filenameExtension: "app") ?? .application,
+                                             .init(filenameExtension: "ipa") ?? .archive]
+                panel.allowsMultipleSelection = false
+                panel.message = "选择 .app 或 .ipa 安装到模拟器"
+                if panel.runModal() == .OK, let url = panel.url {
+                    Task { await appState.installAndLaunchApp(at: url) }
+                }
+            }
+            Divider()
             Button("刷新列表") {
                 Task { await appState.refreshDevices() }
             }

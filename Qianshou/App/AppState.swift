@@ -306,6 +306,64 @@ final class AppState: ObservableObject {
         savedSequences = SequenceStore.loadAll()
     }
 
+    // MARK: - App 安装
+
+    /// 从 .app 或 .ipa 提取 bundle id
+    func bundleID(from url: URL) async -> String? {
+        switch url.pathExtension.lowercased() {
+        case "app":
+            let plist = url.appendingPathComponent("Contents/Info.plist")
+            guard let data = try? Data(contentsOf: plist),
+                  let dict = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
+                return nil
+            }
+            return dict["CFBundleIdentifier"] as? String
+        case "ipa":
+            // 解包读取 Payload/*.app/Contents/Info.plist
+            return await Task.detached(priority: .userInitiated) { () -> String? in
+                let tmpDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("qianshou-ipa-\(UUID().uuidString)")
+                defer { try? FileManager.default.removeItem(at: tmpDir) }
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+                p.arguments = ["-q", url.path, "-d", tmpDir.path]
+                try? p.run()
+                p.waitUntilExit()
+                guard let payload = try? FileManager.default.contentsOfDirectory(
+                    at: tmpDir.appendingPathComponent("Payload"), includingPropertiesForKeys: nil
+                ).first(where: { $0.pathExtension == "app" }) else { return nil }
+                let plist = payload.appendingPathComponent("Contents/Info.plist")
+                guard let data = try? Data(contentsOf: plist),
+                      let dict = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
+                    return nil
+                }
+                return dict["CFBundleIdentifier"] as? String
+            }.value
+        default:
+            return nil
+        }
+    }
+
+    /// 安装并启动 App（选 .app 或 .ipa），成功后 toast
+    func installAndLaunchApp(at url: URL) async {
+        guard let udid = selectedDevice?.udid else {
+            errorMessage = "请先选择模拟器设备"
+            return
+        }
+        do {
+            _ = try await SimulatorManager.installApp(udid, at: url)
+            // 提取 bundle id 并启动
+            if let bundleID = await bundleID(from: url) {
+                _ = try? await SimulatorManager.launchApp(udid, bundleID: bundleID)
+                showToast("已安装并启动 \(url.lastPathComponent)")
+            } else {
+                showToast("已安装 \(url.lastPathComponent)（未识别 bundle id，未自动启动）")
+            }
+        } catch {
+            errorMessage = "安装失败: \(error.localizedDescription)"
+        }
+    }
+
     func deleteSequence(_ sequence: ClickSequence) {
         SequenceStore.delete(sequence)
         loadSequences()

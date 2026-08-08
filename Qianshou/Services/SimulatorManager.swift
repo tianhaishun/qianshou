@@ -54,6 +54,32 @@ enum SimulatorManager {
         _ = try await runSimctl(["io", udid, "screenshot", url.path])
     }
 
+    /// 安装 App（.app 或 .ipa），返回安装路径
+    @discardableResult
+    static func installApp(_ udid: String, at url: URL) async throws -> String {
+        _ = try await runSimctl(["install", udid, url.path])
+        return url.path
+    }
+
+    /// 启动 App（bundle id），返回进程 pid
+    @discardableResult
+    static func launchApp(_ udid: String, bundleID: String) async throws -> String {
+        try await runSimctl(["launch", udid, bundleID])
+    }
+
+    /// 已安装 App 列表（User 类型）
+    static func installedApps(_ udid: String) async throws -> [String] {
+        let output = try await runSimctl(["listapps", udid, "--json"])
+        struct Payload: Codable {
+            let apps: [String: [String: String]]?
+        }
+        if let data = output.data(using: .utf8),
+           let payload = try? JSONDecoder().decode(Payload.self, from: data) {
+            return payload.apps?.keys.sorted() ?? []
+        }
+        return []
+    }
+
     private static func runSimctl(_ args: [String]) async throws -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
