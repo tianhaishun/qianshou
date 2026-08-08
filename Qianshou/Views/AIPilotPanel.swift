@@ -193,6 +193,26 @@ struct AIPilotPanel: View {
                     .font(DesignTokens.ui(11, weight: .semibold))
                     .foregroundStyle(DesignTokens.textSecondary)
                     .lineSpacing(2)
+                // 预置任务模板（一键填充目标）
+                HStack(spacing: 6) {
+                    ForEach(AITaskTemplate.all) { template in
+                        Button {
+                            goal = template.prompt
+                        } label: {
+                            Text(template.title)
+                                .font(DesignTokens.ui(10, weight: .medium))
+                                .foregroundStyle(DesignTokens.accentText)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: DesignTokens.radiusControl)
+                                        .fill(DesignTokens.accentDim)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help(template.prompt)
+                    }
+                }
                 Controls.EditorialField(placeholder: "如:打开设置 → 开启深色模式", text: $goal,
                                         onSubmit: { submitGoal() })
                 Button {
@@ -305,4 +325,35 @@ struct AIPilotPanel: View {
         appState.aiAgent.answer(text)
         answerText = ""
     }
+}
+
+
+/// AI 预置任务模板（一键填充目标）
+struct AITaskTemplate: Identifiable {
+    let id: String
+    let title: String
+    let prompt: String
+
+    static let all: [AITaskTemplate] = [
+        AITaskTemplate(
+            id: "smoke",
+            title: "冒烟测试",
+            prompt: "对当前 App 做一次冒烟测试：依次点击屏幕顶部、中部、底部的主要区域，每个区域点击后观察是否有明显响应（页面变化或高亮），最后回到主屏幕并总结测试结果。"
+        ),
+        AITaskTemplate(
+            id: "browse",
+            title: "遍历页面",
+            prompt: "从当前页面开始逐层遍历：点击每个可见的主要入口进入子页面，观察内容后返回，继续下一个入口。记录访问过的页面清单。"
+        ),
+        AITaskTemplate(
+            id: "darkmode",
+            title: "开启深色模式",
+            prompt: "打开设置 App，进入「显示与亮度」，找到深色模式选项并开启它，然后返回主屏幕。"
+        ),
+        AITaskTemplate(
+            id: "form",
+            title: "表单填写",
+            prompt: "在当前页面找到输入框并依次聚焦，用测试数据填写每个字段（姓名: Test User, 邮箱: test@example.com, 电话: 13800000000），最后点击提交或完成按钮。"
+        ),
+    ]
 }
