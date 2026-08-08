@@ -66,9 +66,39 @@ struct ClickSequence: Codable, Equatable, Hashable {
     var name: String
     var points: [SequencePoint]
     var createdAt: Date
+    /// 回放轮数（CLI/序列编辑用；默认 1 轮）
+    var loops: Int = 1
 
     /// 序列总时长（拖拽点算上执行时长）
     var durationMs: Int {
         points.map { $0.offsetMs + ($0.durationMs ?? 0) }.max() ?? 0
+    }
+
+    // 自定义 Codable：loops 带默认值，兼容旧版本 JSON
+    enum CodingKeys: String, CodingKey {
+        case name, points, createdAt, loops
+    }
+
+    init(name: String, points: [SequencePoint], createdAt: Date, loops: Int = 1) {
+        self.name = name
+        self.points = points
+        self.createdAt = createdAt
+        self.loops = loops
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        points = try c.decode([SequencePoint].self, forKey: .points)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        loops = try c.decodeIfPresent(Int.self, forKey: .loops) ?? 1
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encode(points, forKey: .points)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(loops, forKey: .loops)
     }
 }

@@ -28,6 +28,9 @@ final class WDAClient {
     private(set) var screenSize: (width: Double, height: Double)?
     private(set) var isAlive = false
 
+    /// 调试：当前会话 ID（CLI 诊断用）
+    var debugSessionID: String? { sessionID }
+
     // MARK: - 生命周期
 
     /// 检查 WDA 是否运行（GET /status）

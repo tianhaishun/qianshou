@@ -1,0 +1,30 @@
+{
+  "name": "demo-form-fill",
+  "createdAt": "2026-08-09T00:00:00Z",
+  "points": [
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.2,
+      "offsetMs": 300
+    },
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.35,
+      "offsetMs": 1800
+    },
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.5,
+      "offsetMs": 3300
+    },
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.65,
+      "offsetMs": 4800
+    }
+  ]
+}

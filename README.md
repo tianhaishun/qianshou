@@ -104,6 +104,23 @@ xcodebuild -project Qianshou.xcodeproj -scheme Qianshou -configuration Debug bui
 
 Or grab the latest release from **[Releases](https://github.com/tianhaishun/qianshou/releases)**.
 
+**One-command setup** (detect → build → touch service → launch):
+
+```bash
+./Scripts/setup.sh
+```
+
+### CLI — scripted replay
+
+```bash
+./Scripts/setup.sh                      # once
+build/Debug/qianshou list               # list saved sequences
+build/Debug/qianshou run examples/demo-settings-browse.json
+build/Debug/qianshou run examples/demo-smoke-flow.json --loops 3
+```
+
+The CLI shares the same touch-injection pipeline as the app — replay sequences headlessly for CI or scripting. Example sequences ship in `examples/`.
+
 ### First-run setup
 
 1. **Start the touch-injection service** (once per simulator boot — no code signing needed):
@@ -157,8 +174,9 @@ Debug log: `/tmp/qianshou_debug.log`
 - [x] Touch injection without mouse (XCTest)
 - [x] App install & launch
 - [x] Command palette (⌘K)
+- [x] CLI mode (`qianshou run script.json`, `--loops`)
 - [ ] Element-level automation (assertions, loops)
-- [ ] CLI mode (`qianshou run script.json`)
+- [ ] Sequence loops & waits in the editor
 
 ## <span style="font-family: Georgia, serif; color: #A64B2A;">FAQ</span>
 

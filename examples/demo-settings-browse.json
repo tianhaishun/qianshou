@@ -1,0 +1,33 @@
+{
+  "name": "demo-settings-browse",
+  "createdAt": "2026-08-09T00:00:00Z",
+  "points": [
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.3,
+      "offsetMs": 500
+    },
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.5,
+      "offsetMs": 2500
+    },
+    {
+      "kind": "drag",
+      "x": 0.35,
+      "y": 0.75,
+      "offsetMs": 4500,
+      "endX": 0.35,
+      "endY": 0.4,
+      "durationMs": 600
+    },
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.6,
+      "offsetMs": 6500
+    }
+  ]
+}

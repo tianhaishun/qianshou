@@ -1,0 +1,30 @@
+{
+  "name": "demo-smoke-flow",
+  "createdAt": "2026-08-09T00:00:00Z",
+  "points": [
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.5,
+      "offsetMs": 400
+    },
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.35,
+      "offsetMs": 2500
+    },
+    {
+      "kind": "click",
+      "x": 0.07,
+      "y": 0.08,
+      "offsetMs": 4500
+    },
+    {
+      "kind": "click",
+      "x": 0.5,
+      "y": 0.55,
+      "offsetMs": 6500
+    }
+  ]
+}

@@ -449,7 +449,6 @@ final class FrameLayerView: NSView {
         t = CATransform3DTranslate(t, offset.width, -offset.height, 0)
         t = CATransform3DScale(t, zoom, zoom, 1)
         layer.transform = t
-        DebugLog.log("[FrameLayerView] applyTransform zoom=\(zoom) offset=\(offset)")
     }
     var onClick: ((CGPoint) -> Void)?
     var onPan: ((CGSize) -> Void)?

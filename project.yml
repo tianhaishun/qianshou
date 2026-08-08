@@ -39,6 +39,23 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  QianshouCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - CLI
+      - Qianshou/Services/WDAClient.swift
+      - Qianshou/Services/SequenceRunner.swift
+      - Qianshou/Services/SequenceStore.swift
+      - Qianshou/Services/DebugLog.swift
+      - Qianshou/Models/ClickSequence.swift
+      - Qianshou/Models/ClickPoint.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qianshou.cli
+        PRODUCT_NAME: qianshou
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
   QianshouUITests:
     type: bundle.ui-testing
     platform: macOS
