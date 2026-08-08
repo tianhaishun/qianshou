@@ -385,6 +385,16 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// 更新序列（编辑器保存后写盘并刷新列表）
+    func updateSequence(_ sequence: ClickSequence) {
+        do {
+            try SequenceStore.save(sequence)
+        } catch {
+            errorMessage = "保存序列失败: \(error.localizedDescription)"
+        }
+        loadSequences()
+    }
+
     func deleteSequence(_ sequence: ClickSequence) {
         SequenceStore.delete(sequence)
         loadSequences()

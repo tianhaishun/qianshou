@@ -143,6 +143,7 @@ struct RecorderPanel: View {
 private struct SequenceRow: View {
     @EnvironmentObject private var appState: AppState
     let sequence: ClickSequence
+    @State private var editingSequence: ClickSequence?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -175,6 +176,27 @@ private struct SequenceRow: View {
                 .disabled(appState.clickEngine.isRunning || appState.recorder.isRecording)
                 .help(appState.player.isPlaying ? "停止回放" : "回放 \(sequence.name)")
                 .accessibilityLabel(appState.player.isPlaying ? "停止回放" : "回放 \(sequence.name)")
+                Button {
+                    editingSequence = sequence
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: Binding(
+                    get: { editingSequence == sequence },
+                    set: { if !$0 { editingSequence = nil } }
+                )) {
+                    if let seq = editingSequence {
+                        SequenceEditorView(sequence: seq)
+                            .environmentObject(appState)
+                    }
+                }
+                .help("编辑 \(sequence.name)")
+                .accessibilityLabel("编辑 \(sequence.name)")
                 Button {
                     appState.deleteSequence(sequence)
                 } label: {
