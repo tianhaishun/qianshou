@@ -208,8 +208,8 @@ struct AIPilotPanel: View {
                 .buttonStyle(Controls.PrimaryButtonStyle())
                 .disabled(goal.trimmingCharacters(in: .whitespaces).isEmpty || !appState.wdaRunning)
                 .opacity(goal.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
-                if appState.aiAPIKey.isEmpty {
-                    Text("未配置 API Key(⚙ 设置中填写)")
+                if !appState.wdaRunning {
+                    Text("WDA 未运行,无法执行(scripts/start_wda.sh)")
                         .font(DesignTokens.ui(10))
                         .foregroundStyle(DesignTokens.err)
                         .lineSpacing(2)

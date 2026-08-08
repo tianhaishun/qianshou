@@ -37,13 +37,6 @@ struct MainWindow: View {
             StatusBarView()
         }
         .background(DesignTokens.bgBase)
-        .overlay(alignment: .top) {
-            if let toast = appState.toast {
-                toastBar(toast)
-                    .padding(.top, 54)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
         .overlay {
             if showCommandPalette {
                 CommandPaletteView(isPresented: $showCommandPalette, activity: $activity)
@@ -52,34 +45,5 @@ struct MainWindow: View {
             }
         }
         .animation(DesignTokens.quick, value: showCommandPalette)
-        .animation(DesignTokens.quick, value: appState.toast)
-    }
-}
-
-
-/// 顶部 toast 反馈条（错误与全局操作反馈的可见通道）
-private extension MainWindow {
-    func toastBar(_ message: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(DesignTokens.ok)
-            Text(message)
-                .font(DesignTokens.ui(12, weight: .medium))
-                .foregroundStyle(Color(hex: 0x23211E))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(DesignTokens.bgCardRaised)
-                .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(DesignTokens.borderStrong, lineWidth: 1)
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(message)
     }
 }

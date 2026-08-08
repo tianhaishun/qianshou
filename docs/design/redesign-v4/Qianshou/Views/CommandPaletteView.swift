@@ -18,7 +18,6 @@ struct CommandPaletteView: View {
 
     @State private var query = ""
     @State private var selection = 0
-    @FocusState private var searchFocused: Bool
 
     private var filtered: [PaletteCommand] {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -57,13 +56,7 @@ struct CommandPaletteView: View {
             .onExitCommand { dismiss() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            selection = 0
-            // ⌘K 打开即聚焦搜索框（键盘驱动的前提）
-            Task { @MainActor in
-                searchFocused = true
-            }
-        }
+        .onAppear { selection = 0 }
     }
 
     // MARK: - 搜索框
@@ -77,7 +70,6 @@ struct CommandPaletteView: View {
                 .textFieldStyle(.plain)
                 .font(DesignTokens.ui(13))
                 .foregroundStyle(DesignTokens.ink)
-                .focused($searchFocused)
                 .onKeyPress(.escape) {
                     dismiss()
                     return .handled
@@ -159,7 +151,7 @@ struct CommandPaletteView: View {
                 Text(cmd.hint)
                     .font(DesignTokens.mono(9, weight: .medium))
                     .foregroundStyle(
-                        selected ? DesignTokens.accentText : DesignTokens.textTertiary
+                        selected ? DesignTokens.accentText.opacity(0.75) : DesignTokens.textTertiary
                     )
             }
             .padding(.horizontal, 10)

@@ -22,17 +22,11 @@ struct MirrorCanvas: View {
         GeometryReader { geo in
             ZStack {
                 if let frame = appState.mirrorFrame {
-                    FrameImageView(frame: frame, zoom: zoom, offset: offset) { viewPoint in
+                    FrameImageView(frame: frame) { viewPoint in
                         handleTap(at: viewPoint, frame: frame, viewSize: geo.size)
                     } onPan: { delta in
-                        // 平移钳制：画面不越出视图
-                        var newOffset = CGSize(width: offset.width + delta.width,
-                                               height: offset.height + delta.height)
-                        let maxDX = max(0, geo.size.width * (zoom - 1) / 2)
-                        let maxDY = max(0, geo.size.height * (zoom - 1) / 2)
-                        newOffset.width = min(max(newOffset.width, -maxDX), maxDX)
-                        newOffset.height = min(max(newOffset.height, -maxDY), maxDY)
-                        offset = newOffset
+                        offset = CGSize(width: offset.width + delta.width,
+                                        height: offset.height + delta.height)
                     } onDoubleClick: {
                         zoom = 1
                         offset = .zero
@@ -43,7 +37,7 @@ struct MirrorCanvas: View {
                         case .ended: hoverLocation = nil
                         }
                     }
-                    PointOverlay(frameSize: CGSize(width: frame.width, height: frame.height), viewSize: geo.size, zoom: zoom, offset: offset)
+                    PointOverlay(frame: frame, viewSize: geo.size, zoom: zoom, offset: offset)
                     crosshairOverlay(geo: geo, frame: frame)
                 } else if appState.simulatorWindow != nil {
                     connectingState
@@ -89,7 +83,6 @@ struct MirrorCanvas: View {
         .background(
             RoundedRectangle(cornerRadius: DesignTokens.radiusPanel)
                 .fill(DesignTokens.bgCardRaised.opacity(0.94))
-                .allowsHitTesting(false)
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.radiusPanel)
@@ -300,7 +293,6 @@ struct MirrorCanvas: View {
         guard !appState.clickEngine.isRunning,
               !appState.recorder.isRecording,
               !appState.player.isPlaying,
-              !appState.aiAgent.isRunning,
               let contentInFrame = appState.windowLocator.contentRectNormalizedInFrame(),
               let rel = CoordinateMapper.viewToContent(viewPoint,
                                                        frame: CGSize(width: frame.width, height: frame.height),
@@ -318,14 +310,14 @@ struct MirrorCanvas: View {
 /// 点位标记层 v2:ZStack + 独立手势,支持直接拖拽微调
 private struct PointOverlay: View {
     @EnvironmentObject private var appState: AppState
-    /// 帧尺寸（Equatable，避免每帧因 CGImage 引用变化重算子视图）
-    let frameSize: CGSize
+    let frame: CGImage
     let viewSize: CGSize
     let zoom: CGFloat
     let offset: CGSize
 
     var body: some View {
         let contentInFrame = appState.windowLocator.contentRectNormalizedInFrame()
+        let frameSize = CGSize(width: frame.width, height: frame.height)
 
         ZStack {
             if let contentInFrame {
@@ -389,7 +381,7 @@ private struct PointOverlay: View {
         .frame(width: 36, height: 36)
         .contentShape(Circle())
         .help("\(point.label) · 拖拽微调")
-        .accessibilityLabel(point.label)
+        .accessibilityLabel("\(point.label) \(index + 1)")
     }
 
     /// 视图坐标 → 相对坐标,原位更新点位
@@ -411,8 +403,6 @@ private struct PointOverlay: View {
 /// NSView 层渲染 CGImage 帧
 private struct FrameImageView: NSViewRepresentable {
     let frame: CGImage
-    let zoom: CGFloat
-    let offset: CGSize
     let onClick: (CGPoint) -> Void
     let onPan: (CGSize) -> Void
     let onDoubleClick: () -> Void
@@ -431,7 +421,6 @@ private struct FrameImageView: NSViewRepresentable {
 
     func updateNSView(_ nsView: FrameLayerView, context: Context) {
         nsView.frameImage = frame
-        nsView.applyTransform(zoom: zoom, offset: offset)
     }
 }
 
@@ -440,16 +429,6 @@ final class FrameLayerView: NSView {
         didSet {
             layer?.contents = frameImage
         }
-    }
-
-    /// 应用缩放/平移（以视图中心为基准；layer 坐标 y 向上，offset y 取反）
-    func applyTransform(zoom: CGFloat, offset: CGSize) {
-        guard let layer, zoom > 0 else { return }
-        var t = CATransform3DIdentity
-        t = CATransform3DTranslate(t, offset.width, -offset.height, 0)
-        t = CATransform3DScale(t, zoom, zoom, 1)
-        layer.transform = t
-        DebugLog.log("[FrameLayerView] applyTransform zoom=\(zoom) offset=\(offset)")
     }
     var onClick: ((CGPoint) -> Void)?
     var onPan: ((CGSize) -> Void)?
@@ -517,8 +496,6 @@ final class FrameLayerView: NSView {
         let dx = p.x - start.x
         let dy = p.y - start.y
         guard abs(dx) <= panThreshold, abs(dy) <= panThreshold else { return }
-        // 双击的第二击（复位缩放）不产生点位
-        if event.clickCount == 2 { return }
         onClick?(p)
     }
 }

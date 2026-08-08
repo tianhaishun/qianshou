@@ -23,6 +23,13 @@ final class AppState: ObservableObject {
     let windowLocator = WindowLocator()
     private var mirrorCapture: MirrorCapture?
 
+    /// 启动即开始设备轮询与序列加载
+    /// （不在 WindowGroup 内容上挂 onAppear —— macOS SwiftUI 下会导致窗口不创建）
+    init() {
+        startPollingDevices()
+        loadSequences()
+    }
+
     // MARK: - 全局模式（工具栏与底部条共享）
 
     enum PanelMode: String {
@@ -55,9 +62,10 @@ final class AppState: ObservableObject {
     @Published var showAIPanel = false
 
     func saveAISettings() {
+        // 轻量保存：只写 UserDefaults（AI 配置在 run 时由 AIAgent.configure 应用，
+        // 避免每击键都重配 client）
         UserDefaults.standard.set(aiAPIKey, forKey: "aiAPIKey")
         UserDefaults.standard.set(aiModel, forKey: "aiModel")
-        aiAgent.configure(apiKey: aiAPIKey, model: aiModel)
     }
 
     // MARK: - 全局热键

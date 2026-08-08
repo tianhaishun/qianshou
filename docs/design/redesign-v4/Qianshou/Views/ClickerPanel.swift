@@ -12,7 +12,7 @@ struct ClickerPanel: View {
     @EnvironmentObject private var appState: AppState
 
     private var isRunning: Bool { appState.clickEngine.isRunning }
-    private var locked: Bool { isRunning || appState.player.isPlaying || appState.recorder.isRecording || appState.aiAgent.isRunning }
+    private var locked: Bool { isRunning || appState.player.isPlaying || appState.recorder.isRecording }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

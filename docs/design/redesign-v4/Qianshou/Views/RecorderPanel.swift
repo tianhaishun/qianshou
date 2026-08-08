@@ -12,7 +12,7 @@ struct RecorderPanel: View {
     @EnvironmentObject private var appState: AppState
 
     private var isRecording: Bool { appState.recorder.isRecording }
-    private var locked: Bool { appState.clickEngine.isRunning || appState.player.isPlaying || appState.recorder.isRecording || appState.aiAgent.isRunning }
+    private var locked: Bool { appState.clickEngine.isRunning || appState.player.isPlaying }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -158,23 +158,18 @@ private struct SequenceRow: View {
                 }
                 Spacer()
                 Button {
-                    if appState.player.isPlaying {
-                        appState.player.stop()
-                    } else {
-                        appState.playSequence(sequence)
-                    }
+                    appState.playSequence(sequence)
                 } label: {
-                    Image(systemName: appState.player.isPlaying ? "stop.fill" : "play.fill")
+                    Image(systemName: "play.fill")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DesignTokens.ink)
                         .frame(width: 26, height: 26)
                         .background(Circle().fill(DesignTokens.accent))
                 }
                 .buttonStyle(.plain)
-                // isPlaying 时不禁用（按钮切换为停止）；录制中锁定
-                .disabled(appState.clickEngine.isRunning || appState.recorder.isRecording)
-                .help(appState.player.isPlaying ? "停止回放" : "回放 \(sequence.name)")
-                .accessibilityLabel(appState.player.isPlaying ? "停止回放" : "回放 \(sequence.name)")
+                .disabled(appState.player.isPlaying || appState.clickEngine.isRunning)
+                .help("回放 \(sequence.name)")
+                .accessibilityLabel("回放 \(sequence.name)")
                 Button {
                     appState.deleteSequence(sequence)
                 } label: {
