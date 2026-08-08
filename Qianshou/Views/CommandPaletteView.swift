@@ -1,10 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// ⌘K 命令面板 v2 —— 键盘驱动的全局操作入口
+/// ⌘K 命令面板 v4 —— 键盘驱动的全局操作入口
 ///
 /// 取代 v1 分散在菜单与工具栏中的零散操作,让高频操作全部键盘直达:
 /// 「输入即过滤、↑↓ 选择、回车执行、Esc 关闭」。
+///
+/// 排版改动:选中行改为 2px 平底(radius 10 → 8),搜索行保持无框,
+/// 快捷键用 mono 9 读数;交互逻辑(v2 已定,零改动)。
 ///
 /// 命令覆盖:切换活动(⌘1/2/3) / 启停连点 / 启停录制 / 连接镜像 /
 /// 打开序列目录 / 安装 App / F8 热键开关 / 刷新设备列表。
@@ -25,7 +28,7 @@ struct CommandPaletteView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45)
+            Color.black.opacity(0.25)
                 .ignoresSafeArea()
                 .onTapGesture { dismiss() }
                 .accessibilityHidden(true)
@@ -41,14 +44,14 @@ struct CommandPaletteView: View {
                     .frame(height: 1)
                 footer
             }
-            .frame(width: 480)
+            .frame(width: 500)
             .background(DesignTokens.bgCardRaised)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusCanvas))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: DesignTokens.radiusCanvas)
                     .stroke(DesignTokens.borderStrong, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.55), radius: 28, y: 12)
+            .shadow(color: .black.opacity(0.24), radius: 26, y: 12)
             .frame(maxHeight: 430)
             .onExitCommand { dismiss() }
         }
@@ -66,7 +69,7 @@ struct CommandPaletteView: View {
             TextField("搜索命令…", text: $query)
                 .textFieldStyle(.plain)
                 .font(DesignTokens.ui(13))
-                .foregroundStyle(DesignTokens.textPrimary)
+                .foregroundStyle(DesignTokens.ink)
                 .onKeyPress(.escape) {
                     dismiss()
                     return .handled
@@ -133,32 +136,32 @@ struct CommandPaletteView: View {
                 Image(systemName: cmd.symbol)
                     .font(.system(size: 12))
                     .foregroundStyle(
-                        selected ? DesignTokens.accent
+                        selected ? DesignTokens.accentText
                             : (enabled ? DesignTokens.textSecondary : DesignTokens.textTertiary)
                     )
                     .frame(width: 18)
                 Text(cmd.title)
                     .font(DesignTokens.ui(12, weight: selected ? .semibold : .regular))
                     .foregroundStyle(
-                        selected ? DesignTokens.accent
-                            : (enabled ? DesignTokens.textPrimary : DesignTokens.textTertiary)
+                        selected ? DesignTokens.accentText
+                            : (enabled ? DesignTokens.ink : DesignTokens.textTertiary)
                     )
                     .lineLimit(1)
                 Spacer()
                 Text(cmd.hint)
                     .font(DesignTokens.mono(9, weight: .medium))
                     .foregroundStyle(
-                        selected ? DesignTokens.accent.opacity(0.75) : DesignTokens.textTertiary
+                        selected ? DesignTokens.accentText.opacity(0.75) : DesignTokens.textTertiary
                     )
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background {
                 if selected {
-                    RoundedRectangle(cornerRadius: 6).fill(DesignTokens.accentDim)
+                    RoundedRectangle(cornerRadius: DesignTokens.radiusControl).fill(DesignTokens.accentDim)
                 }
             }
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(RoundedRectangle(cornerRadius: DesignTokens.radiusControl))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -175,7 +178,7 @@ struct CommandPaletteView: View {
             Text("↵ 执行")
             Text("esc 关闭")
             Spacer()
-            Text("\\(filtered.count) 条命令")
+            Text("\(filtered.count) 条命令")
         }
         .font(DesignTokens.mono(9))
         .foregroundStyle(DesignTokens.textTertiary)
@@ -191,10 +194,10 @@ struct CommandPaletteView: View {
         // 活动切换(与侧栏 ⌘1/2/3 一致)
         for item in AppActivity.allCases {
             list.append(PaletteCommand(
-                id: "activity-\\(item.rawValue)",
-                title: "切换到\\(item.title)",
+                id: "activity-\(item.rawValue)",
+                title: "切换到\(item.title)",
                 symbol: item.symbol,
-                hint: "⌘\\(item.shortcut)",
+                hint: "⌘\(item.shortcut)",
                 isEnabled: { true },
                 action: { activity = item }
             ))

@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// 底部遥测条 v2 —— 取代 v1 的浮动玻璃操作条(BottomBarView)
+/// 底部遥测条 v4 —— 页脚(colophon):零方框,纯 mono 数据
 ///
-/// 职责收敛为「状态读数」:活动状态灯 + mono 数据 + 权限/WDA/F8,
-/// 不再承载操作按钮(操作已移入侧栏面板)。
+/// 职责收敛为「状态读数」:活动状态灯 + mono 数据 + 权限/WDA/F8。
+/// 排版改动:v3 的四个带框 chip(TelemetryChip)全部退役,
+/// 改为 label + 值 的 mono 数据行,细竖线分隔(印刷页脚感)。
 struct StatusBarView: View {
     @EnvironmentObject private var appState: AppState
 
@@ -11,12 +12,9 @@ struct StatusBarView: View {
         HStack(spacing: 10) {
             activityReadout
             Spacer()
-            mirrorChip
-            wdaChip
-            permissionChip
-            f8Toggle
+            telemetryRow
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, DesignTokens.space16)
         .frame(height: DesignTokens.statusBarHeight)
         .background(DesignTokens.bgCard)
         .overlay(alignment: .top) {
@@ -33,7 +31,7 @@ struct StatusBarView: View {
             Controls.StatusDot(color: statusColor, pulsing: statusPulsing)
             Text(activityLabel)
                 .font(DesignTokens.mono(11, weight: .semibold))
-                .foregroundStyle(DesignTokens.textPrimary)
+                .foregroundStyle(DesignTokens.ink)
             if let detail = statusDetail {
                 Text(detail)
                     .font(DesignTokens.mono(10))
@@ -80,61 +78,61 @@ struct StatusBarView: View {
         return nil
     }
 
-    // MARK: - 状态 chip
+    // MARK: - 遥测数据行(label 三级 + 值墨色,细竖线分隔)
 
-    private var mirrorChip: some View {
-        Controls.TelemetryChip(
-            label: "镜像",
-            value: appState.isMirroring ? "ON" : "OFF",
-            dotColor: appState.isMirroring ? DesignTokens.ok : DesignTokens.off
-        )
-        .help(appState.isMirroring ? "镜像运行中" : "镜像未运行")
+    private var telemetryRow: some View {
+        HStack(spacing: 0) {
+            datum(label: "镜像", value: appState.isMirroring ? "ON" : "OFF",
+                  color: appState.isMirroring ? DesignTokens.ok : DesignTokens.textTertiary)
+                .help(appState.isMirroring ? "镜像运行中" : "镜像未运行")
+            separator
+            datum(label: "WDA", value: appState.wdaRunning ? "ON" : "OFF",
+                  color: appState.wdaRunning ? DesignTokens.ok : DesignTokens.err)
+                .help(appState.wdaRunning ? "触摸注入服务运行中" : "触摸注入服务未运行(scripts/start_wda.sh)")
+                .onTapGesture {
+                    Task { await appState.ensureWDASession() }
+                }
+            separator
+            datum(label: "录屏", value: appState.screenCapturePermission ? "OK" : "NO",
+                  color: appState.screenCapturePermission ? DesignTokens.ok : DesignTokens.err)
+                .help(appState.screenCapturePermission ? "屏幕录制已授权" : "屏幕录制未授权,点击打开系统设置")
+                .onTapGesture {
+                    if !appState.screenCapturePermission,
+                       let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            separator
+            f8Toggle
+        }
+        .accessibilityElement(children: .contain)
     }
 
-    private var wdaChip: some View {
-        Controls.TelemetryChip(
-            label: "WDA",
-            value: appState.wdaRunning ? "ON" : "OFF",
-            dotColor: appState.wdaRunning ? DesignTokens.ok : DesignTokens.err
-        )
-        .help(appState.wdaRunning ? "触摸注入服务运行中" : "触摸注入服务未运行(scripts/start_wda.sh)")
-        .onTapGesture {
-            Task { await appState.ensureWDASession() }
-        }
+    private var separator: some View {
+        Rectangle()
+            .fill(DesignTokens.border)
+            .frame(width: 1, height: 12)
+            .padding(.horizontal, 9)
     }
 
-    private var permissionChip: some View {
-        Controls.TelemetryChip(
-            label: "录屏",
-            value: appState.screenCapturePermission ? "OK" : "NO",
-            dotColor: appState.screenCapturePermission ? DesignTokens.ok : DesignTokens.err
-        )
-        .help(appState.screenCapturePermission ? "屏幕录制已授权" : "屏幕录制未授权,点击打开系统设置")
-        .onTapGesture {
-            if !appState.screenCapturePermission,
-               let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                NSWorkspace.shared.open(url)
-            }
+    /// 单个数据项:label(mono 10 三级)+ 值(mono 10 medium)
+    private func datum(label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Text(label)
+                .font(DesignTokens.mono(10))
+                .foregroundStyle(DesignTokens.textTertiary)
+            Text(value)
+                .font(DesignTokens.mono(10, weight: .medium))
+                .foregroundStyle(color)
         }
+        .contentShape(Rectangle())
     }
 
     // MARK: - F8 热键
 
     private var f8Toggle: some View {
-        HStack(spacing: 6) {
-            Text("F8")
-                .font(DesignTokens.mono(10, weight: .bold))
-                .foregroundStyle(appState.hotKeyEnabled ? DesignTokens.accent : DesignTokens.textTertiary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(DesignTokens.bgSunken)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(appState.hotKeyEnabled ? DesignTokens.accentBorder : DesignTokens.border, lineWidth: 1)
-                )
+        HStack(spacing: 7) {
+            Controls.KbdHint(text: "F8", highlighted: appState.hotKeyEnabled)
             Toggle("", isOn: Binding(
                 get: { appState.hotKeyEnabled },
                 set: { appState.setHotKey(enabled: $0) }

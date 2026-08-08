@@ -1,13 +1,17 @@
 import AppKit
 import SwiftUI
 
-/// 镜像画布 v2 —— 驾驶舱主屏
+/// 镜像画布 v4 —— 印版(plate):一块被认真装帧过的画面
 ///
-/// 交互逻辑重构:
+/// 排版改动(v3 的三个浮动 chip → 底部一条 mono 图注条):
+/// - 设备名 / 状态 / 运行轮次 与 缩放控制 合入图注条(32pt,印刷线分隔)
+/// - 悬停坐标读数改为墨底纸字小片(像胶片时间码),不再套白框
+/// - 圆角 12 → 8,胶囊退役
+///
+/// 交互逻辑(v2 已定,零改动):
 /// - 悬停显示十字准星 + 实时相对坐标读数(mono)
 /// - 点位可直接拖拽微调(旧版只能删了重加)
 /// - 点/拖/双击手势语义不变,运行中全部锁定
-/// - 缩放控制去渐变,改为细线 + mono 读数
 struct MirrorCanvas: View {
     @EnvironmentObject private var appState: AppState
     @State private var zoom: CGFloat = 1
@@ -43,21 +47,13 @@ struct MirrorCanvas: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(DesignTokens.bgSunken)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusCanvas))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DesignTokens.radiusCanvas)
                     .stroke(hoverLocation != nil ? DesignTokens.borderStrong : DesignTokens.border, lineWidth: 1)
             )
-            .overlay(alignment: .topLeading) {
-                deviceCapsule.padding(12)
-            }
-            .overlay(alignment: .topTrailing) {
-                if appState.clickEngine.isRunning {
-                    runningChip.padding(12)
-                }
-            }
             .overlay(alignment: .bottom) {
-                zoomControl.padding(.bottom, 10)
+                captionBar.padding(.horizontal, 12).padding(.bottom, 10)
             }
         }
         .onAppear {
@@ -69,128 +65,101 @@ struct MirrorCanvas: View {
         }
     }
 
-    // MARK: - 悬浮元素
+    // MARK: - 图注条(取代 v3 的三个浮动 chip)
 
-    private var deviceCapsule: some View {
-        HStack(spacing: 6) {
+    /// 画布底部的单条图注:左 = 设备与状态,右 = 缩放;全 mono,印刷线分隔
+    private var captionBar: some View {
+        HStack(spacing: 10) {
+            deviceReadout
+            if appState.clickEngine.isRunning {
+                loopReadout
+            }
+            Spacer(minLength: 0)
+            zoomControl
+        }
+        .padding(.leading, 10)
+        .padding(.trailing, 4)
+        .frame(height: DesignTokens.captionBarHeight)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.radiusPanel)
+                .fill(DesignTokens.bgCardRaised.opacity(0.94))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.radiusPanel)
+                .stroke(DesignTokens.border, lineWidth: 1)
+        )
+    }
+
+    /// 设备读数:状态点 + 设备名(mono)+ 状态(mono)
+    private var deviceReadout: some View {
+        HStack(spacing: 7) {
             if let window = appState.simulatorWindow {
                 Controls.StatusDot(color: DesignTokens.ok, pulsing: true)
                 Text(window.title)
-                    .font(DesignTokens.ui(11, weight: .semibold))
-                    .foregroundStyle(DesignTokens.accent)
+                    .font(DesignTokens.mono(11, weight: .semibold))
+                    .foregroundStyle(DesignTokens.ink)
+                    .lineLimit(1)
                 Text("已启动")
-                    .font(DesignTokens.ui(10))
+                    .font(DesignTokens.mono(10, weight: .medium))
                     .foregroundStyle(DesignTokens.ok)
             } else {
                 Controls.StatusDot(color: DesignTokens.off)
                 Text("未连接")
-                    .font(DesignTokens.ui(11))
+                    .font(DesignTokens.mono(11, weight: .medium))
                     .foregroundStyle(DesignTokens.textTertiary)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(DesignTokens.bgCard.opacity(0.85))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(DesignTokens.border, lineWidth: 1)
-        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("设备状态")
     }
 
-    private var runningChip: some View {
-        HStack(spacing: 6) {
+    /// 运行轮次:mono 读数(录制色,运行时唯一的醒目数据)
+    private var loopReadout: some View {
+        HStack(spacing: 5) {
             Controls.StatusDot(color: DesignTokens.record, pulsing: true)
-            Text("第 \(appState.clickEngine.currentLoop)/\(appState.clickEngine.totalLoops) 轮")
-                .font(DesignTokens.mono(11, weight: .medium))
-                .foregroundStyle(DesignTokens.textPrimary)
+            Text("第 \(appState.clickEngine.currentLoop)/\(appState.clickEngine.totalLoops) 轮 · \(appState.clickPoints.count) 点")
+                .font(DesignTokens.mono(10, weight: .medium))
+                .foregroundStyle(DesignTokens.record)
+                .contentTransition(.numericText())
+                .animation(DesignTokens.quick, value: appState.clickEngine.currentLoop)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(DesignTokens.bgCard.opacity(0.85))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(DesignTokens.border, lineWidth: 1)
-        )
+        .accessibilityElement(children: .ignore)
     }
 
-    private var connectingState: some View {
-        VStack(spacing: 10) {
-            ProgressView()
-                .controlSize(.small)
-            Text("正在连接镜像…")
-                .font(DesignTokens.ui(12))
-                .foregroundStyle(DesignTokens.textSecondary)
-        }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "iphone.gen3")
-                .font(.system(size: 34))
-                .foregroundStyle(DesignTokens.textTertiary)
-            VStack(spacing: 4) {
-                Text("未选择设备")
-                    .font(DesignTokens.ui(13, weight: .semibold))
-                    .foregroundStyle(DesignTokens.textSecondary)
-                Text("从左上角选择或启动一台模拟器,镜像将出现在这里")
-                    .font(DesignTokens.ui(11))
-                    .foregroundStyle(DesignTokens.textTertiary)
-            }
-            Button {
-                Task { await appState.startMirroring() }
-            } label: {
-                Label("连接镜像", systemImage: "arrow.triangle.2.circlepath")
-            }
-            .buttonStyle(Controls.SecondaryButtonStyle())
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(DesignTokens.border, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                .padding(1)
-        )
-    }
-
-    // MARK: - 缩放控制(细线,去渐变)
+    // MARK: - 缩放控制(细线 + mono 读数)
 
     private var zoomControl: some View {
-        HStack(spacing: 8) {
-            Button {
-                zoom = min(zoom * 1.25, 4)
-            } label: {
-                Image(systemName: "plus.magnifyingglass")
-                    .font(.system(size: 11))
-            }
-            .buttonStyle(.borderless)
-
-            Slider(value: $zoom, in: 1...4, step: 0.25)
-                .tint(DesignTokens.accent)
-                .frame(width: 110)
-
+        HStack(spacing: 6) {
             Button {
                 zoom = max(zoom / 1.25, 1)
             } label: {
                 Image(systemName: "minus.magnifyingglass")
-                    .font(.system(size: 11))
+                    .font(.system(size: 10))
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
+            .help("缩小")
 
-            Text(String(format: "%.2g×", zoom))
-                .font(DesignTokens.mono(11, weight: .medium))
-                .foregroundStyle(DesignTokens.textPrimary)
-                .contentTransition(.numericText())
-                .animation(DesignTokens.quick, value: zoom)
-                .frame(width: 38, alignment: .center)
+            Slider(value: $zoom, in: 1...4, step: 0.25)
+                .tint(DesignTokens.ink)
+                .frame(width: 88)
+                .controlSize(.mini)
+
+            Button {
+                zoom = min(zoom * 1.25, 4)
+            } label: {
+                Image(systemName: "plus.magnifyingglass")
+                    .font(.system(size: 10))
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("放大")
 
             Rectangle()
                 .fill(DesignTokens.border)
-                .frame(width: 1, height: 16)
+                .frame(width: 1, height: 14)
 
             ForEach([1.0, 2.0, 4.0], id: \.self) { level in
                 Button {
@@ -200,13 +169,13 @@ struct MirrorCanvas: View {
                     }
                 } label: {
                     Text("\(Int(level))×")
-                        .font(DesignTokens.mono(10, weight: .semibold))
-                        .foregroundStyle(abs(zoom - level) < 0.01 ? DesignTokens.accent : DesignTokens.textSecondary)
-                        .padding(.horizontal, 7)
+                        .font(DesignTokens.mono(9, weight: .semibold))
+                        .foregroundStyle(abs(zoom - level) < 0.01 ? DesignTokens.ink : DesignTokens.textSecondary)
+                        .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background {
                             if abs(zoom - level) < 0.01 {
-                                RoundedRectangle(cornerRadius: 4).fill(DesignTokens.accentDim)
+                                RoundedRectangle(cornerRadius: 2).fill(DesignTokens.bgSunken)
                             }
                         }
                 }
@@ -220,20 +189,58 @@ struct MirrorCanvas: View {
                 }
             } label: {
                 Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 11))
+                    .font(.system(size: 10))
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .help("适应窗口")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(DesignTokens.bgCard.opacity(0.9))
-        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("缩放控制")
+    }
+
+    // MARK: - 状态占位
+
+    private var connectingState: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text("正在连接镜像…")
+                .font(DesignTokens.ui(12))
+                .foregroundStyle(DesignTokens.textSecondary)
+                .lineSpacing(2)
+        }
+    }
+
+    /// 空态:serif 引导(22)+ sans 说明 + 次级按钮 —— CJK 行高 ≥1.3
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "iphone.gen3")
+                .font(.system(size: 30, weight: .regular))
+                .foregroundStyle(DesignTokens.borderStrong)
+            VStack(spacing: 6) {
+                Text("尚未连接模拟器")
+                    .font(DesignTokens.display(22, weight: .semibold))
+                    .foregroundStyle(DesignTokens.ink)
+                    .lineSpacing(4)
+                Text("从左上角选择或启动一台模拟器,镜像将出现在这里")
+                    .font(DesignTokens.ui(12))
+                    .foregroundStyle(DesignTokens.textTertiary)
+                    .lineSpacing(3)
+            }
+            Button {
+                Task { await appState.startMirroring() }
+            } label: {
+                Label("连接镜像", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(Controls.SecondaryButtonStyle())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(DesignTokens.border, lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignTokens.radiusCanvas)
+                .stroke(DesignTokens.border, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                .padding(1)
         )
     }
 
@@ -243,12 +250,12 @@ struct MirrorCanvas: View {
         ZStack {
             if let h = hoverLocation, !appState.clickEngine.isRunning {
                 Rectangle()
-                    .fill(.white.opacity(0.22))
+                    .fill(DesignTokens.ink.opacity(0.25))
                     .frame(width: 1)
                     .frame(height: geo.size.height)
                     .position(x: h.x, y: geo.size.height / 2)
                 Rectangle()
-                    .fill(.white.opacity(0.22))
+                    .fill(DesignTokens.ink.opacity(0.25))
                     .frame(height: 1)
                     .frame(width: geo.size.width)
                     .position(x: geo.size.width / 2, y: h.y)
@@ -260,22 +267,19 @@ struct MirrorCanvas: View {
                        contentInFrame: contentInFrame,
                        zoom: zoom, offset: offset
                    ) {
-                    Text(String(format: "x %.2f · y %.2f", rel.x, rel.y))
+                    // 墨底纸字小片:像胶片时间码,不套白框
+                    Text(String(format: "x %.3f · y %.3f", rel.x, rel.y))
                         .font(DesignTokens.mono(10, weight: .medium))
-                        .foregroundStyle(DesignTokens.textPrimary)
-                        .padding(.horizontal, 6)
+                        .foregroundStyle(DesignTokens.paper)
+                        .padding(.horizontal, 7)
                         .padding(.vertical, 3)
                         .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(DesignTokens.bgCardRaised)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(DesignTokens.border, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(DesignTokens.ink.opacity(0.88))
                         )
                         .position(
-                            x: min(max(h.x + 14, 56), max(geo.size.width - 56, 56)),
-                            y: max(h.y - 16, 20)
+                            x: min(max(h.x + 14, 62), max(geo.size.width - 62, 62)),
+                            y: max(h.y - 18, 24)
                         )
                 }
             }
@@ -365,7 +369,7 @@ private struct PointOverlay: View {
                 .strokeBorder(.white.opacity(0.9), lineWidth: 1.5)
             Text("\(index + 1)")
                 .font(DesignTokens.mono(9, weight: .bold))
-                .foregroundStyle(Color(hex: 0x06121C))
+                .foregroundStyle(DesignTokens.ink)
             if done {
                 Text("✓")
                     .font(.system(size: 8, weight: .bold))
@@ -440,7 +444,7 @@ final class FrameLayerView: NSView {
         super.init(frame: frameRect)
         layer = CALayer()
         layer?.contentsGravity = .resizeAspect
-        layer?.backgroundColor = NSColor(hex: 0x090F1B).cgColor
+        layer?.backgroundColor = NSColor(hex: 0xEBE7DE).cgColor
         wantsLayer = true
     }
 

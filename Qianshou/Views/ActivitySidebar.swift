@@ -16,6 +16,15 @@ enum AppActivity: String, CaseIterable, Identifiable {
         }
     }
 
+    /// 印刷小标(caps 索引注)
+    var note: String {
+        switch self {
+        case .clicker: return "CLICKER"
+        case .recorder: return "RECORDER"
+        case .pilot: return "PILOT"
+        }
+    }
+
     var symbol: String {
         switch self {
         case .clicker: return "cursorarrow.click.2"
@@ -24,7 +33,8 @@ enum AppActivity: String, CaseIterable, Identifiable {
         }
     }
 
-    var shortcut: String {
+    /// 快捷键字符(Character 可直接转 KeyEquivalent;⌘ 显示用插值)
+    var shortcut: Character {
         switch self {
         case .clicker: return "1"
         case .recorder: return "2"
@@ -33,10 +43,12 @@ enum AppActivity: String, CaseIterable, Identifiable {
     }
 }
 
-/// 活动侧栏 v2 —— 取代 v1 的 popover 弹层与底部操作条
+/// 活动侧栏 v4 —— 目录页(TOC)
 ///
-/// 三种活动平铺为三个面板,镜像永远可见;交互逻辑:
+/// 三个活动平铺为三个面板,镜像永远可见;交互逻辑(v2 已定,零改动):
 /// - 切换活动 = 切换面板(⌘1/⌘2/⌘3)
+/// - 顶部改为目录式索引:mono 序号 + serif 标题 + 快捷键提示,
+///   选中 = accentDim 平底 + accentText 序号(accent 每屏第一处)
 /// - 每个面板自带主操作按钮,不与其他活动抢焦点
 struct ActivitySidebar: View {
     @EnvironmentObject private var appState: AppState
@@ -44,10 +56,10 @@ struct ActivitySidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            activityPicker
+            activityTOC
                 .padding(.horizontal, 10)
-                .padding(.top, 10)
-                .padding(.bottom, 8)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
             Rectangle()
                 .fill(DesignTokens.border)
                 .frame(height: 1)
@@ -68,59 +80,59 @@ struct ActivitySidebar: View {
         }
     }
 
-    // MARK: - 活动切换(自定义分段,细线语言)
+    // MARK: - 目录(取代 v3 分段控件:serif 标题 + mono 序号)
 
-    private var activityPicker: some View {
-        HStack(spacing: 4) {
-            ForEach(AppActivity.allCases) { item in
-                ActivityButton(item: item, isActive: activity == item) {
+    private var activityTOC: some View {
+        VStack(spacing: 2) {
+            ForEach(Array(AppActivity.allCases.enumerated()), id: \.element.id) { index, item in
+                TOCRow(index: index, item: item, isActive: activity == item) {
                     withAnimation(DesignTokens.quick) {
                         activity = item
                     }
                 }
             }
         }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(DesignTokens.bgSunken)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(DesignTokens.border, lineWidth: 1)
-        )
     }
 }
 
-
-/// 活动切换按钮(拆分子视图,避免 SwiftUI 泛型推断超时)
-private struct ActivityButton: View {
+/// 目录行:01 + serif 标题 + ⌘N 提示;选中 = accentDim 平底
+private struct TOCRow: View {
+    let index: Int
     let item: AppActivity
     let isActive: Bool
-    let action: () -> Void
+    let onSelect: () -> Void
+
+    @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: item.symbol)
-                    .font(.system(size: 11))
+        Button(action: onSelect) {
+            HStack(spacing: 10) {
+                Text(String(format: "%02d", index + 1))
+                    .font(DesignTokens.mono(9, weight: .semibold))
+                    .tracking(0.4)
+                    .foregroundStyle(isActive ? DesignTokens.accentText : DesignTokens.textTertiary)
+                    .frame(width: 16, alignment: .leading)
                 Text(item.title)
-                    .font(DesignTokens.ui(11, weight: .semibold))
-                Text("⌘\(item.shortcut)")
-                    .font(DesignTokens.mono(9))
-                    .foregroundStyle(isActive ? DesignTokens.accent.opacity(0.75) : DesignTokens.textTertiary)
+                    .font(DesignTokens.display(16, weight: .semibold))
+                    .foregroundStyle(isActive ? DesignTokens.ink : DesignTokens.textSecondary)
+                    .lineSpacing(3)
+                Spacer(minLength: 0)
+                Controls.KbdHint(text: "⌘" + String(item.shortcut), highlighted: isActive)
             }
-            .foregroundStyle(isActive ? DesignTokens.accent : DesignTokens.textSecondary)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isActive ? DesignTokens.accentDim : Color.clear)
-            )
+            .contentShape(RoundedRectangle(cornerRadius: DesignTokens.radiusControl))
+            .background {
+                RoundedRectangle(cornerRadius: DesignTokens.radiusControl)
+                    .fill(isActive
+                          ? DesignTokens.accentDim
+                          : (hovering ? DesignTokens.bgSunken.opacity(0.5) : Color.clear))
+            }
         }
         .buttonStyle(.plain)
-        .keyboardShortcut(KeyEquivalent(Character(item.shortcut)), modifiers: .command)
+        .keyboardShortcut(KeyEquivalent(item.shortcut), modifiers: .command)
+        .onHover { hovering = $0 }
         .accessibilityLabel("切换到\(item.title)")
-        .help("切换到\(item.title)(⌘\(item.shortcut))")
+        .help("切换到\(item.title)(⌘" + String(item.shortcut) + ")")
     }
 }

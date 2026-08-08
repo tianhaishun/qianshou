@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// AI 驾驶面板 v2 —— 取代 v1 的 popover(AIPanelView)
+/// AI 驾驶面板 v4 —— 执行流 + 三态输入,accent 只跟随当前焦点元素
 ///
-/// 交互逻辑重构:
+/// 交互逻辑(v2 已定,零改动):
 /// - 独立成屏,不再遮挡镜像;输入/步骤流/设置纵向排布
 /// - 三种输入态(目标 / 补充指令 / 回答问题)按运行状态自动切换
 /// - 主 CTA 只有一个:开始执行;停止为次级危险操作
+/// 排版改动:面板标题移入侧栏目录(TOC),此处只保留状态行;
+/// 步骤图标空闲时不着色,执行中当前步用 accentText(accent 每屏 ≤2)。
 struct AIPilotPanel: View {
     @EnvironmentObject private var appState: AppState
     @State private var goal = ""
@@ -17,28 +19,28 @@ struct AIPilotPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            statusHeader
+            statusRow
             Rectangle()
                 .fill(DesignTokens.border)
                 .frame(height: 1)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DesignTokens.space12) {
                     if let image = lastScreenshotImage {
                         Image(nsImage: image)
                             .resizable()
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
                             .frame(maxWidth: .infinity, maxHeight: 132)
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusPanel))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 7)
+                                RoundedRectangle(cornerRadius: DesignTokens.radiusPanel)
                                     .stroke(DesignTokens.border, lineWidth: 1)
                             )
                     }
                     stepsFlow
                 }
-                .padding(12)
+                .padding(DesignTokens.space12)
             }
 
             Rectangle()
@@ -46,28 +48,31 @@ struct AIPilotPanel: View {
                 .frame(height: 1)
 
             inputArea
-                .padding(12)
+                .padding(DesignTokens.space12)
 
             Rectangle()
                 .fill(DesignTokens.border)
                 .frame(height: 1)
 
             settingsRow
-                .padding(12)
+                .padding(DesignTokens.space12)
         }
     }
 
-    // MARK: - 状态头
+    // MARK: - 状态行(标题在侧栏目录,此处只读状态)
 
-    private var statusHeader: some View {
+    private var statusRow: some View {
         HStack(spacing: 8) {
             Controls.StatusDot(color: isRunning ? DesignTokens.ok : DesignTokens.off, pulsing: isRunning)
-            Text("AI 驾驶")
-                .font(DesignTokens.ui(12, weight: .semibold))
-                .foregroundStyle(DesignTokens.textPrimary)
             Text(isRunning ? "执行中" : "待命")
-                .font(DesignTokens.ui(10, weight: .medium))
-                .foregroundStyle(isRunning ? DesignTokens.ok : DesignTokens.textTertiary)
+                .font(DesignTokens.ui(12, weight: .semibold))
+                .foregroundStyle(isRunning ? DesignTokens.ok : DesignTokens.textSecondary)
+                .lineSpacing(2)
+            if isRunning, !appState.aiAgent.steps.isEmpty {
+                Text("\(appState.aiAgent.steps.count) 步")
+                    .font(DesignTokens.mono(10, weight: .medium))
+                    .foregroundStyle(DesignTokens.textTertiary)
+            }
             Spacer()
             if isRunning {
                 Button {
@@ -80,34 +85,19 @@ struct AIPilotPanel: View {
                 .accessibilityLabel("停止 AI 驾驶")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DesignTokens.space12)
+        .padding(.vertical, 9)
     }
 
-    // MARK: - 步骤流
+    // MARK: - 执行流
 
     private var stepsFlow: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
+            Controls.EditorialSection(title: "执行流", note: "STEPS")
+
             if !appState.aiAgent.steps.isEmpty {
-                ForEach(appState.aiAgent.steps) { step in
-                    HStack(alignment: .top, spacing: 7) {
-                        Image(systemName: step.isAction ? "cursorarrow.click" : "sparkles")
-                            .font(.system(size: 9))
-                            .foregroundStyle(step.isAction ? DesignTokens.accent : DesignTokens.textTertiary)
-                            .frame(width: 14)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(step.summary)
-                                .font(DesignTokens.ui(11))
-                                .foregroundStyle(DesignTokens.textPrimary)
-                            if let detail = step.detail, !detail.isEmpty {
-                                Text(detail)
-                                    .font(DesignTokens.mono(9))
-                                    .foregroundStyle(DesignTokens.textTertiary)
-                                    .lineLimit(2)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 3)
+                ForEach(Array(appState.aiAgent.steps.enumerated()), id: \.element.id) { index, step in
+                    stepRow(step: step, isCurrent: isRunning && index == appState.aiAgent.steps.count - 1)
                 }
             }
             if isRunning {
@@ -117,23 +107,52 @@ struct AIPilotPanel: View {
                     Text("AI 思考中…")
                         .font(DesignTokens.ui(10))
                         .foregroundStyle(DesignTokens.textTertiary)
+                        .lineSpacing(2)
                 }
                 .padding(.top, 2)
             } else if appState.aiAgent.steps.isEmpty {
                 Text("描述目标后开始执行,AI 将自主操作模拟器")
                     .font(DesignTokens.ui(11))
                     .foregroundStyle(DesignTokens.textTertiary)
+                    .lineSpacing(3)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 14)
             }
             if let summary = appState.aiAgent.finalSummary {
                 Text("结果:\(summary)")
                     .font(DesignTokens.ui(10, weight: .medium))
                     .foregroundStyle(DesignTokens.ok)
+                    .lineSpacing(2)
                     .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func stepRow(step: AIAgent.Step, isCurrent: Bool) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: step.isAction ? "cursorarrow.click" : "sparkles")
+                .font(.system(size: 9))
+                .foregroundStyle(isCurrent
+                                 ? DesignTokens.accentText
+                                 : (step.isAction ? DesignTokens.textSecondary : DesignTokens.textTertiary))
+                .frame(width: 14)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(step.summary)
+                    .font(DesignTokens.ui(11))
+                    .foregroundStyle(isCurrent ? DesignTokens.ink : DesignTokens.textPrimary)
+                    .lineSpacing(3)
+                    .lineLimit(2)
+                if let detail = step.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(DesignTokens.mono(9))
+                        .foregroundStyle(DesignTokens.textTertiary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(.vertical, 3)
     }
 
     // MARK: - 输入区(三态自动切换)
@@ -145,22 +164,12 @@ struct AIPilotPanel: View {
                 Text("AI 提问:\(question)")
                     .font(DesignTokens.ui(11, weight: .medium))
                     .foregroundStyle(DesignTokens.warn)
+                    .lineSpacing(3)
                 HStack(spacing: 6) {
-                    TextField("输入你的回答…", text: $answerText)
-                        .textFieldStyle(.plain)
-                        .font(DesignTokens.ui(11))
-                        .padding(7)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(DesignTokens.bgSunken)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(DesignTokens.border, lineWidth: 1)
-                        )
-                        .onSubmit { submitAnswer() }
+                    Controls.EditorialField(placeholder: "输入你的回答…", text: $answerText,
+                                            onSubmit: { submitAnswer() })
                     Button("发送") { submitAnswer() }
-                        .buttonStyle(Controls.PrimaryButtonStyle(color: DesignTokens.ok))
+                        .buttonStyle(Controls.SuccessButtonStyle())
                         .controlSize(.small)
                 }
             }
@@ -169,20 +178,10 @@ struct AIPilotPanel: View {
                 Text("手动补充:随时插入指令干预执行")
                     .font(DesignTokens.ui(10))
                     .foregroundStyle(DesignTokens.textTertiary)
+                    .lineSpacing(2)
                 HStack(spacing: 6) {
-                    TextField("如:先点返回,再输入 123456…", text: $supplementText)
-                        .textFieldStyle(.plain)
-                        .font(DesignTokens.ui(11))
-                        .padding(7)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(DesignTokens.bgSunken)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(DesignTokens.border, lineWidth: 1)
-                        )
-                        .onSubmit { submitSupplement() }
+                    Controls.EditorialField(placeholder: "如:先点返回,再输入 123456…", text: $supplementText,
+                                            onSubmit: { submitSupplement() })
                     Button("插入") { submitSupplement() }
                         .buttonStyle(Controls.SecondaryButtonStyle())
                         .controlSize(.small)
@@ -193,19 +192,9 @@ struct AIPilotPanel: View {
                 Text("目标")
                     .font(DesignTokens.ui(11, weight: .semibold))
                     .foregroundStyle(DesignTokens.textSecondary)
-                TextField("如:打开设置 → 开启深色模式", text: $goal)
-                    .textFieldStyle(.plain)
-                    .font(DesignTokens.ui(12))
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(DesignTokens.bgSunken)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 7)
-                            .stroke(DesignTokens.border, lineWidth: 1)
-                    )
-                    .onSubmit { submitGoal() }
+                    .lineSpacing(2)
+                Controls.EditorialField(placeholder: "如:打开设置 → 开启深色模式", text: $goal,
+                                        onSubmit: { submitGoal() })
                 Button {
                     submitGoal()
                 } label: {
@@ -218,11 +207,12 @@ struct AIPilotPanel: View {
                 }
                 .buttonStyle(Controls.PrimaryButtonStyle())
                 .disabled(goal.trimmingCharacters(in: .whitespaces).isEmpty || !appState.wdaRunning)
-                .opacity(goal.trimmingCharacters(in: .whitespaces).isEmpty ? 0.45 : 1)
+                .opacity(goal.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
                 if !appState.wdaRunning {
                     Text("WDA 未运行,无法执行(scripts/start_wda.sh)")
                         .font(DesignTokens.ui(10))
                         .foregroundStyle(DesignTokens.err)
+                        .lineSpacing(2)
                 }
             }
         }
@@ -240,15 +230,17 @@ struct AIPilotPanel: View {
                 HStack(spacing: 6) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.textTertiary)
                     Text("模型与密钥")
                         .font(DesignTokens.ui(11, weight: .medium))
                         .foregroundStyle(DesignTokens.textSecondary)
+                        .lineSpacing(2)
                     Spacer()
                     Text(appState.aiAPIKey.isEmpty ? "未配置" : "已配置")
-                        .font(DesignTokens.mono(9))
+                        .font(DesignTokens.mono(9, weight: .medium))
                         .foregroundStyle(appState.aiAPIKey.isEmpty ? DesignTokens.err : DesignTokens.ok)
                     Image(systemName: showSettings ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 8))
+                        .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(DesignTokens.textTertiary)
                 }
             }
@@ -259,13 +251,15 @@ struct AIPilotPanel: View {
                     SecureField("Anthropic API Key", text: $appState.aiAPIKey)
                         .textFieldStyle(.plain)
                         .font(DesignTokens.mono(11))
-                        .padding(7)
+                        .foregroundStyle(DesignTokens.ink)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 7)
                         .background(
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: DesignTokens.radiusControl)
                                 .fill(DesignTokens.bgSunken)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: DesignTokens.radiusControl)
                                 .stroke(DesignTokens.border, lineWidth: 1)
                         )
                         .onChange(of: appState.aiAPIKey) { _, _ in appState.saveAISettings() }
