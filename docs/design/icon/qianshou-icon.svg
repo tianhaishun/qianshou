@@ -1,0 +1,122 @@
+<!--
+  千手 Qianshou — App 图标设计源文件 (v1)
+  ========================================
+  概念:「千手 · 指尖点击」
+    暖纸 squircle 底 + 陶土橙触点(涟漪扩散) + 手指从顶部按下
+    + 三颗小触点(千手分身) —— 直白表达「连点器」语义。
+
+  设计系统对齐:DesignTokens.swift (v4 纸排)
+    纸 #FAF9F5 · 凸起纸 #FDFCF9 · 橙 accent #D97757 · 墨 #23211E
+  深色变体同构换色(macOS 13+ 深色图标)。
+
+  生成管线(修改本文件后需重新渲染):
+    1. 手工同步参数到 Scripts/make_icon.swift(程序化 PNG 主图)
+    2. swift Scripts/make_icon.swift all
+    3. sips 缩放 → Qianshou/Support/AppIcon.iconset → iconutil 打包 icns
+  本 SVG 是矢量设计源:预览用浏览器打开;若需要新增尺寸/换色,先改 SVG 再同步脚本。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- 亮色变体 -->
+  <g id="light">
+    <defs>
+      <linearGradient id="bgL" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#FDFCF9"/>
+        <stop offset="1" stop-color="#F0EDE4"/>
+      </linearGradient>
+      <linearGradient id="btnL" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#E0815F"/>
+        <stop offset="1" stop-color="#C96A4B"/>
+      </linearGradient>
+      <filter id="shadowL" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow dx="0" dy="16" stdDeviation="34" flood-color="#9A5A3E" flood-opacity="0.32"/>
+      </filter>
+      <filter id="fingerShadowL" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow dx="0" dy="8" stdDeviation="22" flood-color="#000000" flood-opacity="0.16"/>
+      </filter>
+    </defs>
+
+    <!-- 1. 背景 squircle -->
+    <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bgL)"/>
+    <rect x="1.5" y="1.5" width="1021" height="1021" rx="226.5" fill="none" stroke="#E2DCD0" stroke-opacity="0.65" stroke-width="3"/>
+
+    <!-- 2. 小触点(千手分身) -->
+    <g>
+      <circle cx="252" cy="790" r="30" fill="#D97757" fill-opacity="0.92" stroke="#FDFCF9" stroke-opacity="0.9" stroke-width="4"/>
+      <circle cx="772" cy="790" r="30" fill="#D97757" fill-opacity="0.92" stroke="#FDFCF9" stroke-opacity="0.9" stroke-width="4"/>
+      <circle cx="512" cy="884" r="28" fill="#D97757" fill-opacity="0.92" stroke="#FDFCF9" stroke-opacity="0.9" stroke-width="4"/>
+    </g>
+
+    <!-- 3. 中央触点按钮:投影 + 橙渐变 -->
+    <g filter="url(#shadowL)">
+      <circle cx="512" cy="520" r="215" fill="url(#btnL)"/>
+    </g>
+    <!-- 涟漪:两道扩散环 + 中心点 -->
+    <circle cx="512" cy="520" r="132" fill="none" stroke="#FDFCF9" stroke-opacity="0.62" stroke-width="9"/>
+    <circle cx="512" cy="520" r="198" fill="none" stroke="#FDFCF9" stroke-opacity="0.62" stroke-width="6"/>
+    <circle cx="512" cy="520" r="33" fill="#A64B2A"/>
+
+    <!-- 4. 手指:柱体 + 指尖圆头(顶部伸出画布 → 从顶部按下) -->
+    <g filter="url(#fingerShadowL)">
+      <path d="M 417 -80 L 417 400
+               A 95 95 0 0 0 607 400
+               L 607 -80 Z"
+            fill="#FDFCF9"/>
+    </g>
+    <path d="M 417 -80 L 417 400
+             A 95 95 0 0 0 607 400
+             L 607 -80 Z"
+          fill="none" stroke="#23211E" stroke-width="3.5" stroke-linejoin="round"/>
+    <!-- 指节弧线(俯视透视) -->
+    <path d="M 425 336 Q 512 352 599 336"
+          fill="none" stroke="#23211E" stroke-opacity="0.34" stroke-width="3"/>
+  </g>
+
+  <!-- 深色变体 -->
+  <g id="dark">
+    <defs>
+      <linearGradient id="bgD" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2C2924"/>
+        <stop offset="1" stop-color="#1B1916"/>
+      </linearGradient>
+      <linearGradient id="btnD" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#E58B68"/>
+        <stop offset="1" stop-color="#D2704E"/>
+      </linearGradient>
+      <filter id="shadowD" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow dx="0" dy="16" stdDeviation="34" flood-color="#0E0C0A" flood-opacity="0.55"/>
+      </filter>
+      <filter id="fingerShadowD" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow dx="0" dy="8" stdDeviation="22" flood-color="#000000" flood-opacity="0.4"/>
+      </filter>
+    </defs>
+
+    <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bgD)"/>
+    <rect x="1.5" y="1.5" width="1021" height="1021" rx="226.5" fill="none" stroke="#47423A" stroke-opacity="0.8" stroke-width="3"/>
+
+    <g>
+      <circle cx="252" cy="790" r="30" fill="#E58B68" stroke="#F6F3EC" stroke-opacity="0.85" stroke-width="4"/>
+      <circle cx="772" cy="790" r="30" fill="#E58B68" stroke="#F6F3EC" stroke-opacity="0.85" stroke-width="4"/>
+      <circle cx="512" cy="884" r="28" fill="#E58B68" stroke="#F6F3EC" stroke-opacity="0.85" stroke-width="4"/>
+    </g>
+
+    <g filter="url(#shadowD)">
+      <circle cx="512" cy="520" r="215" fill="url(#btnD)"/>
+    </g>
+    <circle cx="512" cy="520" r="132" fill="none" stroke="#FDFCF9" stroke-opacity="0.66" stroke-width="9"/>
+    <circle cx="512" cy="520" r="198" fill="none" stroke="#FDFCF9" stroke-opacity="0.66" stroke-width="6"/>
+    <circle cx="512" cy="520" r="33" fill="#8F3E24"/>
+
+    <g filter="url(#fingerShadowD)">
+      <path d="M 417 -80 L 417 400
+               A 95 95 0 0 0 607 400
+               L 607 -80 Z"
+            fill="#F6F3EC"/>
+    </g>
+    <path d="M 417 -80 L 417 400
+             A 95 95 0 0 0 607 400
+             L 607 -80 Z"
+          fill="none" stroke="#131110" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M 425 336 Q 512 352 599 336"
+          fill="none" stroke="#131110" stroke-opacity="0.4" stroke-width="3"/>
+  </g>
+</svg>
