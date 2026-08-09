@@ -173,6 +173,8 @@ final class AnthropicClient {
     }
 
     var apiKey: String = ""
+    /// 测试注入用：自定义 URLSessionConfiguration（URLProtocol stub）
+    var sessionConfiguration: URLSessionConfiguration?
     /// OAuth Bearer Token（ANTHROPIC_AUTH_TOKEN / Claude Code / ant profile）
     var oauthToken: String = ""
     /// 自定义端点（ANTHROPIC_BASE_URL —— DeepSeek 等 Anthropic 兼容中转）
@@ -216,11 +218,17 @@ final class AnthropicClient {
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        // 每请求独立 ephemeral session：避免 URLSession 连接复用导致的 TLS 失败
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 120
-        config.timeoutIntervalForResource = 180
-        config.httpMaximumConnectionsPerHost = 1
+        // 每请求独立 session：避免 URLSession 连接复用导致的 TLS 失败；
+        // 测试可注入带 URLProtocol stub 的配置
+        let config: URLSessionConfiguration
+        if let injected = sessionConfiguration {
+            config = injected
+        } else {
+            config = URLSessionConfiguration.ephemeral
+            config.timeoutIntervalForRequest = 120
+            config.timeoutIntervalForResource = 180
+            config.httpMaximumConnectionsPerHost = 1
+        }
         let session = URLSession(configuration: config)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {

@@ -5,6 +5,13 @@ import XCTest
 @MainActor
 final class AnthropicClientTests: XCTestCase {
 
+    /// 带 URLProtocol stub 的 session 配置
+    private var stubConfiguration: URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        return config
+    }
+
     override func setUp() {
         super.setUp()
         URLProtocol.registerClass(MockURLProtocol.self)
@@ -31,6 +38,7 @@ final class AnthropicClientTests: XCTestCase {
 
         let client = AnthropicClient()
         client.apiKey = "test-key"
+        client.sessionConfiguration = stubConfiguration
         let response = try await client.chat(
             system: "测试系统提示",
             messages: [AnthropicClient.Message(role: "user", content: [.text("你好")])],
@@ -83,6 +91,7 @@ final class AnthropicClientTests: XCTestCase {
 
         let client = AnthropicClient()
         client.apiKey = "k"
+        client.sessionConfiguration = stubConfiguration
         let msg = AnthropicClient.Message(role: "user", content: [
             .image(base64: "aGVsbG8="),
             .text("描述"),
@@ -105,6 +114,7 @@ final class AnthropicClientTests: XCTestCase {
 
         let client = AnthropicClient()
         client.apiKey = "k"
+        client.sessionConfiguration = stubConfiguration
         let response = try await client.chat(
             system: "",
             messages: [AnthropicClient.Message(role: "user", content: [.text("go")])],
