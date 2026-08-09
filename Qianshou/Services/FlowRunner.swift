@@ -59,12 +59,12 @@ enum FlowRunner {
 
         case .tapOn(let selector):
             guard selector.isNotEmpty else { throw RunnerError.unsupportedSelector }
-            let el = try await findElement(selector, expect: .exists)
+            let el = try await findElement(selector)
             try await tap(el)
 
         case .assertVisible(let selector):
             guard selector.isNotEmpty else { throw RunnerError.unsupportedSelector }
-            _ = try await findElement(selector, expect: .exists)
+            _ = try await findElement(selector)
             DebugLog.log("[FlowRunner] assertVisible ✓ \(selector.description)")
 
         case .assertNotVisible(let selector):
@@ -120,21 +120,27 @@ enum FlowRunner {
 
     // MARK: - 元素查找与点击
 
-    private enum Expectation {
-        case exists
-    }
+    /// 元素查找默认超时（页面转场动画期间轮询等待）
+    static let defaultElementTimeout: TimeInterval = 10
 
-    private static func findElement(_ selector: FlowSelector, expect: Expectation) async throws -> UIElement {
+    private static func findElement(_ selector: FlowSelector) async throws -> UIElement {
         guard let el = try await findElementOptional(selector) else {
             throw RunnerError.elementNotFound(selector.description)
         }
         return el
     }
 
-    private static func findElementOptional(_ selector: FlowSelector) async throws -> UIElement? {
-        let xml = try await WDAClient.shared.sourceXML()
-        let elements = ElementTree.parse(xml)
-        return ElementTree.match(selector, in: elements)
+    /// 轮询查找元素：默认每 300ms 重查元素树，直到出现或超时
+    private static func findElementOptional(_ selector: FlowSelector,
+                                            timeout: TimeInterval = defaultElementTimeout) async throws -> UIElement? {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+        while true {
+            let xml = try await WDAClient.shared.sourceXML()
+            let elements = ElementTree.parse(xml)
+            if let match = ElementTree.match(selector, in: elements) { return match }
+            if ContinuousClock.now >= deadline { return nil }
+            try await Task.sleep(nanoseconds: 300_000_000)
+        }
     }
 
     private static func tap(_ el: UIElement) async throws {
