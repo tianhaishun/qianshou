@@ -1,4 +1,7 @@
-<p align="center" style="font-family: Georgia, 'Times New Roman', serif; background: #FAF9F5; padding: 40px 20px 20px;">
+<p align="center" style="font-family: Georgia, 'Times New Roman', serif; background: #FAF9F5; padding: 40px 20px 12px;">
+  <img src="docs/design/icon/icon-light-1024.png" width="96" alt="Qianshou icon" style="border-radius: 20px; box-shadow: 0 4px 16px rgba(35,33,30,0.12);"/>
+  <br/>
+  <br/>
   <span style="font-size: 52px; font-weight: bold; color: #23211E; letter-spacing: 2px;">千手 · Qianshou</span><br/>
   <span style="font-size: 18px; color: #57534C;">AI driving for the iOS Simulator — describe a goal, watch it operate</span><br/>
   <span style="font-size: 14px; color: #A64B2A;">native macOS · zero dependencies · your cursor never moves</span>

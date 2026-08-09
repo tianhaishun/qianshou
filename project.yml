@@ -23,9 +23,9 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: 千手
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
-        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_ICONSET_NAME: ""
-        INFOPLIST_KEY_CFBundleIconFile: AppIcon
+        INFOPLIST_KEY_CFBundleIconFile: ""
     entitlements:
       path: Qianshou/Support/Qianshou.entitlements
       properties: {}

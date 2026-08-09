@@ -7,6 +7,12 @@
 //
 // 用法:swift Scripts/make_icon.swift [light|dark|all]
 // 依赖:macOS 自带 AppKit/CoreGraphics,零第三方。
+//
+// 集成管线:
+//   1. 生成 1024 主图 → 复制到 Qianshou/Support/Assets.xcassets/AppIcon.appiconset/
+//      (icon-1024-light.png / icon-1024-dark.png,Contents.json 已声明 dark 变体)
+//   2. xcodegen generate → xcodebuild(asset catalog 编译进 Assets.car)
+//   注意:.icns 格式不支持深色变体,必须走 asset catalog(appearances: luminosity dark)。
 
 import AppKit
 import CoreGraphics
