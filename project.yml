@@ -48,8 +48,12 @@ targets:
       - Qianshou/Services/SequenceRunner.swift
       - Qianshou/Services/SequenceStore.swift
       - Qianshou/Services/DebugLog.swift
+      - Qianshou/Services/YAMLParser.swift
+      - Qianshou/Services/ElementTree.swift
+      - Qianshou/Services/FlowRunner.swift
       - Qianshou/Models/ClickSequence.swift
       - Qianshou/Models/ClickPoint.swift
+      - Qianshou/Models/Flow.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.qianshou.cli

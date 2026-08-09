@@ -119,16 +119,35 @@ Or grab the latest release from **[Releases](https://github.com/tianhaishun/qian
 ./Scripts/setup.sh
 ```
 
-### CLI — scripted replay
+### CLI — scripted replay & flows
 
 ```bash
 ./Scripts/setup.sh                      # once
 build/Debug/qianshou list               # list saved sequences
 build/Debug/qianshou run examples/demo-settings-browse.json
 build/Debug/qianshou run examples/demo-smoke-flow.json --loops 3
+build/Debug/qianshou run examples/settings-browse.yaml   # YAML flow script
 ```
 
-The CLI shares the same touch-injection pipeline as the app — replay sequences headlessly for CI or scripting. Example sequences ship in `examples/`.
+**Flow scripts (YAML)** — assert, wait, and branch on screen state:
+
+```yaml
+appId: com.apple.Preferences
+---
+- launchApp
+- tapOn: "通用"
+- assertVisible: "关于本机"       # fails the flow if not on screen
+- swipe:
+    start: 50%, 50%
+    end: 50%, 10%
+- runFlow:                       # conditional sub-flow
+    when:
+      visible: "深色模式"
+    commands:
+      - tapOn: "深色模式"
+```
+
+The CLI shares the same touch-injection pipeline as the app — replay sequences or run flows headlessly for CI or scripting.
 
 ### First-run setup
 

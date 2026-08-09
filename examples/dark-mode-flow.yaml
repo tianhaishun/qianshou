@@ -1,0 +1,13 @@
+# 深色模式开关 flow —— 展示条件子流程
+# 用法: qianshou run examples/dark-mode-flow.yaml
+appId: com.apple.Preferences
+---
+- launchApp
+- assertVisible: "设置"
+- runFlow:
+    when:
+      visible: "深色模式"
+    commands:
+      - tapOn: "深色模式"
+      - tapOn: "深色"
+      - pressKey: HOME

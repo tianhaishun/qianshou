@@ -33,7 +33,7 @@ struct QianshouCLI {
 
     static func run(_ args: [String]) async throws {
         guard args.count >= 2 else {
-            print("用法: qianshou run <sequence.json> [--loops N]")
+            print("用法: qianshou run <sequence.json 或 flow.yaml> [--loops N]")
             exit(1)
         }
         let path = args[1]
@@ -42,7 +42,44 @@ struct QianshouCLI {
             loops = Int(args[idx + 1]) ?? 1
         }
 
-        // 加载序列
+        // 按扩展名分流：.yaml/.yml → flow 脚本；.json → 点击序列
+        let url = URL(fileURLWithPath: path)
+        let ext = url.pathExtension.lowercased()
+        switch ext {
+        case "yaml", "yml":
+            try await runFlow(path: path)
+        case "json":
+            try await runSequence(path: path, loops: loops)
+        default:
+            print("不支持的文件类型 .\(ext)（支持 .yaml flow 脚本 或 .json 点击序列）")
+            exit(1)
+        }
+    }
+
+    /// 执行 YAML flow 脚本
+    private static func runFlow(path: String) async throws {
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        guard let yamlText = String(data: data, encoding: .utf8) else {
+            print("✗ 无法读取文件（非 UTF-8）: \(path)")
+            exit(1)
+        }
+        let document = try YAMLParser.parse(yamlText)
+        let (appId, commands) = try FlowParser.parse(document)
+
+        print("千手 CLI — 执行 flow「\(path.split(separator: "/").last ?? "")」")
+        print("  appId: \(appId ?? "（沿用当前会话）") · \(commands.count) 条命令")
+        print("  连接 WDA ...")
+
+        var completed = 0
+        try await FlowRunner.run(commands: commands, appId: appId) { index, total, desc in
+            completed += 1
+            print("  ✓ [\(index + 1)/\(total)] \(desc)")
+        }
+        print("✅ flow 执行完成（\(completed) 条命令）")
+    }
+
+    /// 回放点击序列（JSON）
+    private static func runSequence(path: String, loops: Int) async throws {
         let url = URL(fileURLWithPath: path)
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
@@ -85,15 +122,24 @@ struct QianshouCLI {
         千手 CLI — iOS 模拟器自动化脚本
 
         用法:
-          qianshou run <sequence.json> [--loops N]   回放序列（可循环）
+          qianshou run <sequence.json> [--loops N]   回放点击序列（可循环）
+          qianshou run <flow.yaml>                   执行 YAML flow 脚本
           qianshou list                               列出已保存序列
 
         前置条件:
           1. 模拟器已启动（xcrun simctl boot <udid>）
           2. WDA 触摸注入已运行（./Scripts/start_wda.sh）
 
+        flow 脚本示例（examples/settings-browse.yaml）:
+          appId: com.apple.Preferences
+          ---
+          - launchApp
+          - tapOn: "通用"
+          - assertVisible: "关于本机"
+
         示例:
           qianshou run examples/demo-settings-browse.json
+          qianshou run examples/settings-browse.yaml
           qianshou run examples/demo-smoke-flow.json --loops 3
         """)
     }

@@ -46,16 +46,15 @@ final class WDAClient {
     }
 
     /// 创建会话并读取设备屏幕尺寸
-    func ensureSession() async throws {
+    func ensureSession(bundleId: String = "com.apple.Preferences") async throws {
         if sessionID != nil { return }
         guard isAlive else { throw WDAError.notRunning }
 
         var request = URLRequest(url: baseURL.appendingPathComponent("session"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = Data("""
-        {"capabilities":{"alwaysMatch":{"bundleId":"com.apple.Preferences"}}}
-        """.utf8)
+        let body = "{\"capabilities\":{\"alwaysMatch\":{\"bundleId\":\"\(bundleId)\"}}}"
+        request.httpBody = Data(body.utf8)
 
         let (data, _) = try await URLSession.shared.data(for: request)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -83,6 +82,12 @@ final class WDAClient {
     func closeSession() {
         sessionID = nil
         screenSize = nil
+    }
+
+    /// 启动指定 bundleId 的 app（flow launchApp 命令）
+    func launchApp(bundleId: String) async throws {
+        closeSession()
+        try await ensureSession(bundleId: bundleId)
     }
 
     // MARK: - 触摸注入（设备逻辑 pt）

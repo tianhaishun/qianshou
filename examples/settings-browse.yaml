@@ -1,0 +1,13 @@
+# 设置浏览 flow —— 千手 YAML 脚本
+# 用法: qianshou run examples/settings-browse.yaml
+appId: com.apple.Preferences
+---
+- launchApp
+- assertVisible: "设置"
+- tapOn: "通用"
+- assertVisible: "关于本机"
+- tapOn: "关于本机"
+- swipe:
+    start: 50%, 50%
+    end: 50%, 10%
+- pressKey: HOME
