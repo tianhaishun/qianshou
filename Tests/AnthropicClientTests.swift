@@ -130,8 +130,9 @@ final class AnthropicClientTests: XCTestCase {
         if case .toolUse(let id, let name, let input) = toolUses[0] {
             XCTAssertEqual(id, "toolu_01")
             XCTAssertEqual(name, "tap")
-            XCTAssertEqual(input["x"]?.value as? Double, 200)
-            XCTAssertEqual(input["y"]?.value as? Double, 400)
+            // JSON 整数解码为 Int（非 Double）—— AIAgent 参数解析依赖此语义
+            XCTAssertEqual(input["x"]?.value as? Int, 200)
+            XCTAssertEqual(input["y"]?.value as? Int, 400)
         }
     }
 
