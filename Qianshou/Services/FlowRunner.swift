@@ -59,8 +59,17 @@ enum FlowRunner {
 
         case .tapOn(let selector):
             guard selector.isNotEmpty else { throw RunnerError.unsupportedSelector }
-            let el = try await findElement(selector)
-            try await tap(el)
+            if let point = selector.point {
+                // 坐标定位：不走元素树
+                guard let size = WDAClient.shared.screenSize else { throw RunnerError.noScreenSize }
+                let tx = point.x / 100 * size.width
+                let ty = point.y / 100 * size.height
+                DebugLog.log("[FlowRunner] tap point (\(tx), \(ty))")
+                try await WDAClient.shared.tap(x: tx, y: ty)
+            } else {
+                let el = try await findElement(selector)
+                try await tap(el)
+            }
 
         case .assertVisible(let selector):
             guard selector.isNotEmpty else { throw RunnerError.unsupportedSelector }

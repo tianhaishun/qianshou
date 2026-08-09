@@ -36,7 +36,8 @@ final class WDAClient {
     /// 检查 WDA 是否运行（GET /status）
     func checkAlive() async {
         var request = URLRequest(url: baseURL.appendingPathComponent("status"))
-        request.timeoutInterval = 2
+        // 5s：进程冷启动时 URLSession 首次请求可达 3-4s，2s 会误判离线
+        request.timeoutInterval = 5
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             isAlive = (response as? HTTPURLResponse)?.statusCode == 200

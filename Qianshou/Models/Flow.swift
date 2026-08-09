@@ -15,16 +15,19 @@ import Foundation
 /// - assertVisible: "关于本机"
 /// ```
 
-/// 元素选择器（text 或 id 二选一，text 支持精确/子串/正则）
+/// 元素选择器（text / id / point 三选一，text 支持精确/子串/正则）
 struct FlowSelector: Equatable {
     var text: String?
     var id: String?
+    /// 坐标定位（"50%, 50%"）—— 不依赖元素树，直接点击
+    var point: FlowPercentPoint?
 
-    var isNotEmpty: Bool { text != nil || id != nil }
+    var isNotEmpty: Bool { text != nil || id != nil || point != nil }
 
     var description: String {
         if let text { return "text=\(text)" }
         if let id { return "id=\(id)" }
+        if let point { return "point=\(Int(point.x))%,\(Int(point.y))%" }
         return "(空选择器)"
     }
 }
@@ -173,11 +176,18 @@ enum FlowParser {
         case .map(let m):
             let text = m["text"]?.stringValue
             let id = m["id"]?.stringValue
-            let selector = FlowSelector(text: text, id: id)
-            guard selector.isNotEmpty else { throw FlowError.invalidSelector("\(command) 需要 text 或 id") }
+            var point: FlowPercentPoint?
+            if let pointRaw = m["point"]?.stringValue {
+                guard let parsed = FlowPercentPoint.parse(pointRaw) else {
+                    throw FlowError.invalidSelector("point 格式无效: \(pointRaw)（应为 \"50%, 50%\"）")
+                }
+                point = parsed
+            }
+            let selector = FlowSelector(text: text, id: id, point: point)
+            guard selector.isNotEmpty else { throw FlowError.invalidSelector("\(command) 需要 text / id / point") }
             return selector
         default:
-            throw FlowError.invalidSelector("\(command) 需要字符串或 text/id 映射")
+            throw FlowError.invalidSelector("\(command) 需要字符串或 text/id/point 映射")
         }
     }
 

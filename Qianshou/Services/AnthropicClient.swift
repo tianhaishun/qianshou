@@ -108,8 +108,10 @@ final class AnthropicClient {
         init(from decoder: Decoder) throws {
             let c = try decoder.singleValueContainer()
             if let v = try? c.decode(Bool.self) { value = v }
-            else if let v = try? c.decode(Double.self) { value = v }
+            // Int 先于 Double：JSON 整数（如元素 index=6）应保持 Int，
+            // 否则 as? Int 对 6.0 失败（AIAgent tap_element 曾因此空转）
             else if let v = try? c.decode(Int.self) { value = v }
+            else if let v = try? c.decode(Double.self) { value = v }
             else if let v = try? c.decode(String.self) { value = v }
             else if let v = try? c.decode([AnyCodable].self) { value = v.map(\.value) }
             else if let v = try? c.decode([String: AnyCodable].self) { value = v.mapValues(\.value) }

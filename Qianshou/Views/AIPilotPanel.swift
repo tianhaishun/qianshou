@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// AI 驾驶面板 v4 —— 执行流 + 三态输入,accent 只跟随当前焦点元素
 ///
@@ -125,8 +126,35 @@ struct AIPilotPanel: View {
                     .lineSpacing(2)
                     .padding(.top, 2)
             }
+            if appState.aiAgent.hasExportableFlow, !isRunning {
+                Button {
+                    exportFlow()
+                } label: {
+                    Label("导出可复现脚本", systemImage: "doc.badge.arrow.up")
+                        .font(DesignTokens.ui(11, weight: .medium))
+                }
+                .buttonStyle(Controls.SecondaryButtonStyle())
+                .padding(.top, 8)
+                .help("把 AI 执行过的动作保存为 YAML flow 脚本，可随时用 CLI 回放")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 导出 AI 动作序列为 flow 脚本（NSSavePanel 保存 .yaml）
+    private func exportFlow() {
+        guard let yaml = appState.aiAgent.exportFlow() else { return }
+        let panel = NSSavePanel()
+        panel.title = "导出可复现脚本"
+        panel.nameFieldStringValue = "ai-flow.yaml"
+        panel.allowedContentTypes = [.yaml]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try yaml.write(to: url, atomically: true, encoding: .utf8)
+            appState.showToast("已导出:\(url.lastPathComponent)（qianshou run 可回放）")
+        } catch {
+            appState.showToast("导出失败:\(error.localizedDescription)")
+        }
     }
 
     private func stepRow(step: AIAgent.Step, isCurrent: Bool) -> some View {

@@ -243,7 +243,11 @@ enum YAMLParser {
         let s = raw.trimmingCharacters(in: .whitespaces)
         if s.isEmpty { return .null }
         if s.count >= 2 {
-            if (s.hasPrefix("\"") && s.hasSuffix("\"")) || (s.hasPrefix("'") && s.hasSuffix("'")) {
+            if s.hasPrefix("\"") && s.hasSuffix("\"") {
+                // 双引号：解析转义序列（与 FlowExporter 转义对称）
+                return .string(unescapeDoubleQuoted(String(s.dropFirst().dropLast())))
+            }
+            if s.hasPrefix("'") && s.hasSuffix("'") {
                 return .string(String(s.dropFirst().dropLast()))
             }
         }
@@ -251,6 +255,25 @@ enum YAMLParser {
         if s == "false" { return .bool(false) }
         if let n = Double(s), !s.contains(",") { return .number(n) }
         return .string(s)
+    }
+
+    /// 双引号字符串转义解析（\n \t \r \" \\；未知转义保留原样）
+    private static func unescapeDoubleQuoted(_ s: String) -> String {
+        var out = ""
+        var iter = s.makeIterator()
+        while let ch = iter.next() {
+            if ch != "\\" { out.append(ch); continue }
+            guard let next = iter.next() else { out.append(ch); break }
+            switch next {
+            case "n": out += "\n"
+            case "t": out += "\t"
+            case "r": out += "\r"
+            case "\"": out += "\""
+            case "\\": out += "\\"
+            default: out.append(next)
+            }
+        }
+        return out
     }
 
     /// 找第一个结构冒号（不在引号内的 `:`）

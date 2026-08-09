@@ -25,6 +25,12 @@ final class AIAgent: ObservableObject {
     @Published var pendingQuestion: String?
     @Published var finalSummary: String?
 
+    /// AI 执行过的动作记录（用于导出可复现 flow 脚本）
+    private var actionLog: [FlowExporter.Action] = []
+
+    /// 是否有可导出的动作序列
+    var hasExportableFlow: Bool { !actionLog.isEmpty }
+
     private let client = AnthropicClient()
     private var messages: [AnthropicClient.Message] = []
     private var task: Task<Void, Never>?
@@ -45,6 +51,7 @@ final class AIAgent: ObservableObject {
         finalSummary = nil
         pendingQuestion = nil
         steps = []
+        actionLog = []
         messages = [
             AnthropicClient.Message(role: "user", content: [.text(goal)]),
         ]
@@ -379,7 +386,14 @@ final class AIAgent: ObservableObject {
         do {
             switch name {
             case "tap_element":
-                guard let index = input["index"]?.value as? Int,
+                // index 可能是 Int/Double/String（模型 JSON 不总规范）
+                let rawIndex = input["index"]?.value
+                let index: Int?
+                if let i = rawIndex as? Int { index = i }
+                else if let d = rawIndex as? Double { index = Int(d) }
+                else if let s = rawIndex as? String { index = Int(s) }
+                else { index = nil }
+                guard let index,
                       elements.indices.contains(index),
                       let size = WDAClient.shared.screenSize else {
                     return "错误: 元素编号无效或屏幕尺寸未知"
@@ -388,29 +402,46 @@ final class AIAgent: ObservableObject {
                 let x = el.relX * size.width
                 let y = el.relY * size.height
                 try await WDAClient.shared.tap(x: x, y: y)
+                actionLog.append(.tapElement(label: el.label))
                 return "已点击 #\(index) (\(el.label))"
 
             case "tap":
-                let x = input["x"]?.value as? Double ?? 0
-                let y = input["y"]?.value as? Double ?? 0
+                let x = asDouble(input["x"]?.value)
+                let y = asDouble(input["y"]?.value)
                 try await WDAClient.shared.tap(x: x, y: y)
+                if let size = WDAClient.shared.screenSize, size.width > 0, size.height > 0 {
+                    actionLog.append(.tapPoint(
+                        xPct: (x / size.width * 100).rounded(),
+                        yPct: (y / size.height * 100).rounded()
+                    ))
+                }
                 return "已点击 (\(Int(x)), \(Int(y)))"
 
             case "type":
                 let text = input["text"]?.value as? String ?? ""
                 try await WDAClient.shared.typeText(text)
+                actionLog.append(.type(text: text))
                 return "已输入文本"
 
             case "swipe":
-                let fx = input["from_x"]?.value as? Double ?? 0
-                let fy = input["from_y"]?.value as? Double ?? 0
-                let tx = input["to_x"]?.value as? Double ?? 0
-                let ty = input["to_y"]?.value as? Double ?? 0
+                let fx = asDouble(input["from_x"]?.value)
+                let fy = asDouble(input["from_y"]?.value)
+                let tx = asDouble(input["to_x"]?.value)
+                let ty = asDouble(input["to_y"]?.value)
                 try await WDAClient.shared.drag(fromX: fx, fromY: fy, toX: tx, toY: ty, duration: 0.5)
+                if let size = WDAClient.shared.screenSize, size.width > 0, size.height > 0 {
+                    actionLog.append(.swipe(
+                        fxPct: (fx / size.width * 100).rounded(),
+                        fyPct: (fy / size.height * 100).rounded(),
+                        txPct: (tx / size.width * 100).rounded(),
+                        tyPct: (ty / size.height * 100).rounded()
+                    ))
+                }
                 return "已滑动"
 
             case "press_home":
                 try await WDAClient.shared.pressHome()
+                actionLog.append(.pressHome)
                 return "已回主屏"
 
             case "finish":
@@ -425,6 +456,22 @@ final class AIAgent: ObservableObject {
         } catch {
             return "执行失败: \(error.localizedDescription)"
         }
+    }
+
+    /// 模型参数数值容错：Int / Double / String 数字统一转 Double
+    private func asDouble(_ v: Any?) -> Double {
+        if let d = v as? Double { return d }
+        if let i = v as? Int { return Double(i) }
+        if let s = v as? String { return Double(s) ?? 0 }
+        return 0
+    }
+
+    // MARK: - 导出 flow
+
+    /// 把 AI 执行过的动作导出为可复现的 YAML flow（千手 / CLI 可直接回放）
+    func exportFlow() -> String? {
+        guard !actionLog.isEmpty else { return nil }
+        return FlowExporter.yaml(from: actionLog)
     }
 
     // MARK: - 观察
