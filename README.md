@@ -9,6 +9,12 @@
 </p>
 
 <p align="center">
+  <img src="docs/demo-ai.gif" width="720" style="border-radius: 8px; border: 1px solid #D8D2C6; box-shadow: 0 8px 24px rgba(35,33,30,0.12);"/>
+  <br/>
+  <span style="font-family: monospace; font-size: 12px; color: #A64B2A;">AI 驾驶：一句话驱动模拟器 · 观察→决策→执行</span>
+</p>
+
+<p align="center">
   <img src="docs/demo.gif" width="720" style="border-radius: 8px; border: 1px solid #D8D2C6; box-shadow: 0 8px 24px rgba(35,33,30,0.12);"/>
 </p>
 
