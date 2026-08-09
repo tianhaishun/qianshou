@@ -1,3 +1,4 @@
+import ImageIO
 import Foundation
 
 /// AI 驾驶模式：自然语言目标 → 自主操作模拟器
@@ -217,9 +218,20 @@ final class AIAgent: ObservableObject {
             } catch {
                 // 手动补充/停止会取消当前请求 —— 静默退出，不报错
                 if Task.isCancelled { return }
-                DebugLog.log("[AIAgent] API 失败: \(error.localizedDescription)")
-                addStep("AI 请求失败", detail: error.localizedDescription, isAction: false)
-                return
+                DebugLog.log("[AIAgent] API 失败(第 1 次): \(error.localizedDescription)，重试...")
+                // 网络类错误重试一次（TLS/超时）
+                do {
+                    response = try await client.chat(
+                        system: systemPrompt,
+                        messages: messages + [userMsg],
+                        tools: tools
+                    )
+                } catch {
+                    if Task.isCancelled { return }
+                    DebugLog.log("[AIAgent] API 失败(第 2 次): \(error.localizedDescription)")
+                    addStep("AI 请求失败", detail: error.localizedDescription, isAction: false)
+                    return
+                }
             }
 
             // 追加 assistant 回合
@@ -265,15 +277,18 @@ final class AIAgent: ObservableObject {
                 }
             }
 
-            // 无变化检测（简化：观察前截图对比）
-            if let current = currentScreenshotBase64, current == self.lastObservationBase64 {
+            // 无变化检测：截图降采样差异（忽略状态栏时钟噪声；元素树对页面内点击不敏感）
+            let changed = framesDifferSignificantly(currentScreenshot: current.screenshot)
+            if !changed {
                 noChangeCount += 1
+                DebugLog.log("[AIAgent] 画面无变化 \(noChangeCount)/3")
             } else {
                 noChangeCount = 0
             }
-            self.lastObservationBase64 = currentScreenshotBase64
             if noChangeCount >= 3 {
-                addStep("屏幕无变化，停止", detail: nil, isAction: false)
+                // 卡住：自动收尾（附说明，而不是静默停止）
+                finalSummary = "任务卡住（屏幕连续 3 步无变化），已停止"
+                addStep("任务卡住（屏幕无变化）", detail: finalSummary, isAction: false)
                 return
             }
 
@@ -282,8 +297,57 @@ final class AIAgent: ObservableObject {
         addStep("超过最大步数，停止", detail: nil, isAction: false)
     }
 
-    private var currentScreenshotBase64: String?
-    private var lastObservationBase64: String?
+    private var lastScreenshotForCompare: String?
+
+    /// 截图降采样差异：缩放后像素差异比例 < 1% 视为无变化
+    private func framesDifferSignificantly(currentScreenshot: String) -> Bool {
+        guard let prev = lastScreenshotForCompare else {
+            lastScreenshotForCompare = currentScreenshot
+            return true
+        }
+        lastScreenshotForCompare = currentScreenshot
+        guard let currentData = Data(base64Encoded: currentScreenshot),
+              let prevData = Data(base64Encoded: prev),
+              let currentImage = CGImageSourceCreateWithData(currentData as CFData, nil),
+              let prevImage = CGImageSourceCreateWithData(prevData as CFData, nil),
+              let currentCG = CGImageSourceCreateImageAtIndex(currentImage, 0, nil),
+              let prevCG = CGImageSourceCreateImageAtIndex(prevImage, 0, nil) else {
+            return true
+        }
+        // 降采样到小尺寸比较
+        let w = 32
+        let h = 64
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
+                                  bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return true
+        }
+        var prevPixels = [UInt8](repeating: 0, count: w * h * 4)
+        ctx.draw(currentCG, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let cur = ctx.data else { return true }
+        let curPixels = Array(UnsafeBufferPointer(start: cur.assumingMemoryBound(to: UInt8.self), count: w * h * 4))
+
+        // 第二个 context 绘制上一帧
+        guard let ctx2 = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
+                                   bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return true
+        }
+        ctx2.draw(prevCG, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let prevDataPtr = ctx2.data else { return true }
+        let prevPixelsArr = Array(UnsafeBufferPointer(start: prevDataPtr.assumingMemoryBound(to: UInt8.self), count: w * h * 4))
+
+        // 差异像素比例（RGB 通道差 > 20）
+        var diffCount = 0
+        let total = w * h
+        for i in stride(from: 0, to: w * h * 4, by: 4) {
+            let dr = abs(Int(curPixels[i]) - Int(prevPixelsArr[i]))
+            let dg = abs(Int(curPixels[i+1]) - Int(prevPixelsArr[i+1]))
+            let db = abs(Int(curPixels[i+2]) - Int(prevPixelsArr[i+2]))
+            if dr > 20 || dg > 20 || db > 20 { diffCount += 1 }
+        }
+        return Double(diffCount) / Double(total) > 0.01
+    }
 
     private func stepSummary(name: String, input: [String: AnthropicClient.AnyCodable]) -> String {
         switch name {
@@ -379,7 +443,6 @@ final class AIAgent: ObservableObject {
     private func observe() async -> (screenshot: String, elements: String)? {
         do {
             let screenshot = try await WDAClient.shared.screenshotBase64()
-            currentScreenshotBase64 = screenshot
             lastScreenshot = screenshot
 
             let xml = try await WDAClient.shared.sourceXML()

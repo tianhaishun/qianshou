@@ -216,7 +216,13 @@ final class AnthropicClient {
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // 每请求独立 ephemeral session：避免 URLSession 连接复用导致的 TLS 失败
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 120
+        config.timeoutIntervalForResource = 180
+        config.httpMaximumConnectionsPerHost = 1
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw ClientError.decoding("无 HTTP 响应")
         }
