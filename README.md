@@ -121,6 +121,12 @@ Or grab the latest release from **[Releases](https://github.com/tianhaishun/qian
 
 ### CLI — scripted replay & flows
 
+<p align="center">
+  <img src="docs/flow-demo.gif" width="380" style="border-radius: 8px; border: 1px solid #D8D2C6; box-shadow: 0 8px 24px rgba(35,33,30,0.12);"/>
+  <br/>
+  <span style="font-family: monospace; font-size: 12px; color: #A64B2A;">flow 脚本：7 条命令自动完成「设置 → 通用 → 关于本机」全程</span>
+</p>
+
 ```bash
 ./Scripts/setup.sh                      # once
 build/Debug/qianshou list               # list saved sequences
