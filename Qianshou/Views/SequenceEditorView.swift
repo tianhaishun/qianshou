@@ -148,6 +148,17 @@ struct SequenceEditorView: View {
                 .foregroundStyle(DesignTokens.ink)
                 .lineLimit(1)
 
+            if point.kind == .click, let label = point.elementLabel, !label.isEmpty {
+                Image(systemName: "scope")
+                    .font(.system(size: 8))
+                    .foregroundStyle(DesignTokens.accentText)
+                    .help("元素定位:\(label)（回放优先按元素点）")
+                Text("\(label)")
+                    .font(DesignTokens.mono(8))
+                    .foregroundStyle(DesignTokens.accentText)
+                    .lineLimit(1)
+            }
+
             Spacer()
 
             // 时序调整

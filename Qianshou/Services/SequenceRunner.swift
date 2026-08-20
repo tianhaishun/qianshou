@@ -19,6 +19,12 @@ enum SequenceRunner {
         }
     }
 
+    /// 元素树中按 label 查找元素（失败返回 nil → 回退坐标）
+    private static func findElementByLabel(_ label: String) async -> UIElement? {
+        guard let xml = try? await WDAClient.shared.sourceXML() else { return nil }
+        return ElementTree.match(FlowSelector(text: label), in: ElementTree.parse(xml))
+    }
+
     /// 回放序列
     /// - Parameters:
     ///   - sequence: 序列（loops 字段控制轮数）
@@ -42,13 +48,27 @@ enum SequenceRunner {
 
                 switch point.kind {
                 case .click:
-                    let tx = point.x * size.width
-                    let ty = point.y * size.height
-                    DebugLog.log("[SequenceRunner] tap (\(tx), \(ty)) size=\(size)")
-                    do {
-                        try await WDAClient.shared.tap(x: tx, y: ty)
-                    } catch {
-                        DebugLog.log("[SequenceRunner] tap FAILED: \(error)")
+                    // 元素定位优先：录到了元素标签就按元素点（换机型不失效），
+                    // 元素未找到或未捕获标签时回退坐标
+                    if let label = point.elementLabel, !label.isEmpty,
+                       let el = await findElementByLabel(label) {
+                        let tx = el.centerX * size.width
+                        let ty = el.centerY * size.height
+                        DebugLog.log("[SequenceRunner] tap element \"\(label)\" @(\(tx), \(ty))")
+                        do {
+                            try await WDAClient.shared.tap(x: tx, y: ty)
+                        } catch {
+                            DebugLog.log("[SequenceRunner] tap FAILED: \(error)")
+                        }
+                    } else {
+                        let tx = point.x * size.width
+                        let ty = point.y * size.height
+                        DebugLog.log("[SequenceRunner] tap (\(tx), \(ty)) size=\(size)")
+                        do {
+                            try await WDAClient.shared.tap(x: tx, y: ty)
+                        } catch {
+                            DebugLog.log("[SequenceRunner] tap FAILED: \(error)")
+                        }
                     }
                 case .drag:
                     try await WDAClient.shared.drag(

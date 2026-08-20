@@ -119,4 +119,22 @@ enum ElementTree {
         }
         return nil
     }
+
+    /// 找到包含给定相对坐标的最小元素（录制时定位点击目标用）
+    ///
+    /// 深层元素优先：同一位置嵌套时取面积最小者（更具体）。
+    static func element(atX px: Double, y py: Double, in elements: [UIElement]) -> UIElement? {
+        var best: UIElement?
+        var bestArea = Double.greatestFiniteMagnitude
+        for el in elements {
+            guard px >= el.relX, px <= el.relX + el.relW,
+                  py >= el.relY, py <= el.relY + el.relH else { continue }
+            let area = el.relW * el.relH
+            if area < bestArea {
+                bestArea = area
+                best = el
+            }
+        }
+        return best
+    }
 }

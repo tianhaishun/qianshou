@@ -181,12 +181,28 @@ final class Recorder: ObservableObject {
                     x: Double(drag.startPoint.x), y: Double(drag.startPoint.y),
                     offsetMs: offsetMs
                 ))
+                // 元素定位增强：异步捕获点击处元素标签（WDA 不可用时静默跳过）
+                let pointIndex = points.count - 1
+                Task { [weak self] in
+                    await self?.resolveElementLabel(at: drag.startPoint, index: pointIndex)
+                }
             }
             recordedCount = points.count
             DebugLog.log("[Recorder] recorded \(points.count) @\(offsetMs)ms kind=\(points.last?.kind.rawValue ?? "?")")
         default:
             break
         }
+    }
+
+    /// 捕获点击处元素标签（元素树包含该点的最小元素）
+    private func resolveElementLabel(at rel: CGPoint, index: Int) async {
+        guard let xml = try? await WDAClient.shared.sourceXML() else { return }
+        let elements = ElementTree.parse(xml)
+        guard let el = ElementTree.element(atX: Double(rel.x), y: Double(rel.y), in: elements),
+              !el.label.isEmpty,
+              points.indices.contains(index) else { return }
+        points[index].elementLabel = el.label
+        DebugLog.log("[Recorder] 点击 #\(index) 元素定位: \(el.label)")
     }
 
     /// 屏幕坐标 → 内容区相对坐标（范围校验）

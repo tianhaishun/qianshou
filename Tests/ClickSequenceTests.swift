@@ -107,3 +107,33 @@ final class ClickSequenceTests: XCTestCase {
         XCTAssertNotEqual(a, b)
     }
 }
+
+    func testElementLabelRoundTrip() throws {
+        let seq = ClickSequence(name: "元素",
+                                points: [
+                                    SequencePoint(x: 0.5, y: 0.3, offsetMs: 100, elementLabel: "通用"),
+                                    SequencePoint(x: 0.6, y: 0.4, offsetMs: 200, elementLabel: nil),
+                                ],
+                                createdAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(seq)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(ClickSequence.self, from: data)
+        XCTAssertEqual(decoded.points[0].elementLabel, "通用")
+        XCTAssertNil(decoded.points[1].elementLabel)
+    }
+
+    func testElementLabelBackwardCompat() throws {
+        // 旧版 JSON（无 elementLabel 字段）应正常解码且 label 为 nil
+        let oldJSON = """
+        {"name":"旧","points":[{"kind":"click","x":0.5,"y":0.5,"offsetMs":0}],
+         "createdAt":"2026-01-01T00:00:00Z"}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(ClickSequence.self, from: Data(oldJSON.utf8))
+        XCTAssertEqual(decoded.points.count, 1)
+        XCTAssertNil(decoded.points[0].elementLabel)
+    }

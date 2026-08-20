@@ -18,14 +18,17 @@ struct SequencePoint: Codable, Equatable, Hashable {
     var endY: Double?
     /// 拖动时长（仅 kind == .drag，毫秒）
     var durationMs: Int?
+    /// 点击处元素标签（录制时从元素树捕获；回放优先按元素定位，换机型不失效）
+    var elementLabel: String?
 
     // 自定义 Codable：新增字段带默认值，兼容旧版本保存的 JSON
     enum CodingKeys: String, CodingKey {
-        case kind, x, y, offsetMs, endX, endY, durationMs
+        case kind, x, y, offsetMs, endX, endY, durationMs, elementLabel
     }
 
     init(kind: Kind = .click, x: Double, y: Double, offsetMs: Int,
-         endX: Double? = nil, endY: Double? = nil, durationMs: Int? = nil) {
+         endX: Double? = nil, endY: Double? = nil, durationMs: Int? = nil,
+         elementLabel: String? = nil) {
         self.kind = kind
         self.x = x
         self.y = y
@@ -33,6 +36,7 @@ struct SequencePoint: Codable, Equatable, Hashable {
         self.endX = endX
         self.endY = endY
         self.durationMs = durationMs
+        self.elementLabel = elementLabel
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +51,7 @@ struct SequencePoint: Codable, Equatable, Hashable {
         endX = try c.decodeIfPresent(Double.self, forKey: .endX)
         endY = try c.decodeIfPresent(Double.self, forKey: .endY)
         durationMs = try c.decodeIfPresent(Int.self, forKey: .durationMs)
+        elementLabel = try c.decodeIfPresent(String.self, forKey: .elementLabel)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -58,6 +63,7 @@ struct SequencePoint: Codable, Equatable, Hashable {
         try c.encodeIfPresent(endX, forKey: .endX)
         try c.encodeIfPresent(endY, forKey: .endY)
         try c.encodeIfPresent(durationMs, forKey: .durationMs)
+        try c.encodeIfPresent(elementLabel, forKey: .elementLabel)
     }
 }
 
