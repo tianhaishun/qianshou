@@ -47,6 +47,21 @@ enum SequenceRunner {
                 try? await Task.sleep(until: target, clock: .continuous)
 
                 switch point.kind {
+                case .waitElement:
+                    // 条件等待：轮询元素树直到 elementLabel 出现或超时（超时继续，不中断序列）
+                    if let label = point.elementLabel, !label.isEmpty {
+                        let timeout = TimeInterval(max(point.durationMs ?? 5000, 0)) / 1000
+                        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+                        var appeared = false
+                        while ContinuousClock.now < deadline {
+                            if let _ = await findElementByLabel(label) {
+                                appeared = true
+                                break
+                            }
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                        }
+                        DebugLog.log("[SequenceRunner] waitElement \"\(label)\" \(appeared ? "✓ 出现" : "✗ 超时(\(String(format: "%.1f", timeout))s)")")
+                    }
                 case .click:
                     // 元素定位优先：录到了元素标签就按元素点（换机型不失效），
                     // 元素未找到或未捕获标签时回退坐标

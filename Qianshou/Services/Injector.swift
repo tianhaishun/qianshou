@@ -16,6 +16,20 @@ enum Injector {
         try? await WDAClient.shared.tap(x: x, y: y)
     }
 
+    /// 等待元素出现（轮询元素树；超时返回 false，不抛错）
+    static func waitForElement(label: String, timeoutMs: Int) async -> Bool {
+        let timeout = TimeInterval(max(timeoutMs, 0)) / 1000
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeout))
+        while ContinuousClock.now < deadline {
+            if let xml = try? await WDAClient.shared.sourceXML(),
+               ElementTree.match(FlowSelector(text: label), in: ElementTree.parse(xml)) != nil {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        return false
+    }
+
     /// 注入拖拽（起点/终点均为内容区相对坐标）
     static func drag(fromRel: CGPoint, toRel: CGPoint, durationMs: Int = 200) async {
         guard let size = WDAClient.shared.screenSize else { return }

@@ -137,3 +137,34 @@ final class ClickSequenceTests: XCTestCase {
         XCTAssertEqual(decoded.points.count, 1)
         XCTAssertNil(decoded.points[0].elementLabel)
     }
+
+    func testWaitElementRoundTrip() throws {
+        let seq = ClickSequence(name: "等待",
+                                points: [
+                                    SequencePoint(kind: .waitElement, x: 0.5, y: 0.5,
+                                                  offsetMs: 1000, durationMs: 8000,
+                                                  elementLabel: "通用"),
+                                ],
+                                createdAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(seq)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(ClickSequence.self, from: data)
+        XCTAssertEqual(decoded.points[0].kind, .waitElement)
+        XCTAssertEqual(decoded.points[0].durationMs, 8000)
+        XCTAssertEqual(decoded.points[0].elementLabel, "通用")
+    }
+
+    func testUnknownKindFallsBackToClick() throws {
+        // 未来版本新增 kind 时，旧版 App 解码不崩（回退 .click）
+        let json = """
+        {"name":"未来","points":[{"kind":"futureKind","x":0.5,"y":0.5,"offsetMs":0}],
+         "createdAt":"2026-01-01T00:00:00Z"}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(ClickSequence.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.points[0].kind, .click)
+    }

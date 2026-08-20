@@ -6,6 +6,8 @@ struct SequencePoint: Codable, Equatable, Hashable {
     enum Kind: String, Codable, Hashable {
         case click
         case drag
+        /// 条件等待：等待 elementLabel 指定的元素出现；durationMs 为超时（默认 5000ms）
+        case waitElement
     }
 
     var kind: Kind = .click

@@ -130,72 +130,127 @@ struct SequenceEditorView: View {
                         .font(DesignTokens.ui(11, weight: .medium))
                 }
                 .buttonStyle(Controls.SecondaryButtonStyle())
+
+                Button {
+                    addAction(kind: .waitElement)
+                } label: {
+                    Label("添加等待", systemImage: "plus")
+                        .font(DesignTokens.ui(11, weight: .medium))
+                }
+                .buttonStyle(Controls.SecondaryButtonStyle())
             }
         }
     }
 
     private func actionRow(_ point: SequencePoint, index: Int) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: point.kind == .click ? "circle" : "arrow.up.and.down")
-                .font(.system(size: 9))
-                .foregroundStyle(point.kind == .click ? DesignTokens.accentText : DesignTokens.textSecondary)
-                .frame(width: 14)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: rowIcon(point.kind))
+                    .font(.system(size: 9))
+                    .foregroundStyle(rowIconColor(point.kind))
+                    .frame(width: 14)
 
-            Text(point.kind == .click
-                 ? "点 (\(String(format: "%.2f", point.x)), \(String(format: "%.2f", point.y)))"
-                 : "拖 (\(String(format: "%.2f", point.x)),\(String(format: "%.2f", point.y)))→(\(String(format: "%.2f", point.endX ?? point.x)),\(String(format: "%.2f", point.endY ?? point.y)))")
-                .font(DesignTokens.mono(9))
-                .foregroundStyle(DesignTokens.ink)
-                .lineLimit(1)
+                if point.kind == .waitElement {
+                    // 等待节点：元素标签可编辑
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 8))
+                        .foregroundStyle(DesignTokens.warn)
+                    TextField("等待的元素标签", text: elementLabelBinding(index))
+                        .textFieldStyle(.plain)
+                        .font(DesignTokens.mono(9))
+                        .foregroundStyle(DesignTokens.ink)
+                } else {
+                    Text(rowText(point))
+                        .font(DesignTokens.mono(9))
+                        .foregroundStyle(DesignTokens.ink)
+                        .lineLimit(1)
+                }
 
-            if point.kind == .click, let label = point.elementLabel, !label.isEmpty {
-                Image(systemName: "scope")
-                    .font(.system(size: 8))
-                    .foregroundStyle(DesignTokens.accentText)
-                    .help("元素定位:\(label)（回放优先按元素点）")
-                Text("\(label)")
-                    .font(DesignTokens.mono(8))
-                    .foregroundStyle(DesignTokens.accentText)
-                    .lineLimit(1)
-            }
+                if point.kind == .click, let label = point.elementLabel, !label.isEmpty {
+                    Image(systemName: "scope")
+                        .font(.system(size: 8))
+                        .foregroundStyle(DesignTokens.accentText)
+                        .help("元素定位:\(label)（回放优先按元素点）")
+                    Text("\(label)")
+                        .font(DesignTokens.mono(8))
+                        .foregroundStyle(DesignTokens.accentText)
+                        .lineLimit(1)
+                }
 
-            Spacer()
+                Spacer()
 
-            // 时序调整
-            HStack(spacing: 2) {
+                // 时序调整
+                HStack(spacing: 2) {
+                    Button {
+                        adjustOffset(index, delta: -100)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("提前 100ms")
+
+                    Text("\(point.offsetMs)ms")
+                        .font(DesignTokens.mono(9))
+                        .foregroundStyle(DesignTokens.textSecondary)
+                        .frame(width: 48, alignment: .trailing)
+
+                    Button {
+                        adjustOffset(index, delta: 100)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("延后 100ms")
+                }
+
                 Button {
-                    adjustOffset(index, delta: -100)
+                    removeAction(index)
                 } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 8, weight: .semibold))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8))
+                        .foregroundStyle(DesignTokens.textTertiary)
                 }
                 .buttonStyle(.plain)
-                .help("提前 100ms")
+                .accessibilityLabel("删除动作 \(index + 1)")
+            }
 
-                Text("\(point.offsetMs)ms")
-                    .font(DesignTokens.mono(9))
-                    .foregroundStyle(DesignTokens.textSecondary)
-                    .frame(width: 48, alignment: .trailing)
+            // 等待节点专属：超时调整
+            if point.kind == .waitElement {
+                HStack(spacing: 6) {
+                    Text("超时")
+                        .font(DesignTokens.ui(9))
+                        .foregroundStyle(DesignTokens.textTertiary)
+                    Button {
+                        adjustTimeout(index, delta: -500)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("超时减 500ms")
 
-                Button {
-                    adjustOffset(index, delta: 100)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 8, weight: .semibold))
+                    Text("\(point.durationMs ?? 5000)ms")
+                        .font(DesignTokens.mono(9))
+                        .foregroundStyle(DesignTokens.warn)
+                        .frame(width: 56, alignment: .trailing)
+
+                    Button {
+                        adjustTimeout(index, delta: 500)
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("超时加 500ms")
+
+                    Text("元素未出现时继续执行")
+                        .font(DesignTokens.ui(9))
+                        .foregroundStyle(DesignTokens.textTertiary)
                 }
-                .buttonStyle(.plain)
-                .help("延后 100ms")
+                .padding(.leading, 22)
             }
-
-            Button {
-                removeAction(index)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 8))
-                    .foregroundStyle(DesignTokens.textTertiary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("删除动作 \(index + 1)")
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
@@ -209,6 +264,49 @@ struct SequenceEditorView: View {
         )
     }
 
+    // MARK: - 行渲染辅助
+
+    private func rowIcon(_ kind: SequencePoint.Kind) -> String {
+        switch kind {
+        case .click: return "circle"
+        case .drag: return "arrow.up.and.down"
+        case .waitElement: return "clock"
+        }
+    }
+
+    private func rowIconColor(_ kind: SequencePoint.Kind) -> Color {
+        switch kind {
+        case .click: return DesignTokens.accentText
+        case .drag: return DesignTokens.textSecondary
+        case .waitElement: return DesignTokens.warn
+        }
+    }
+
+    private func rowText(_ point: SequencePoint) -> String {
+        switch point.kind {
+        case .click:
+            return "点 (\(String(format: "%.2f", point.x)), \(String(format: "%.2f", point.y)))"
+        case .drag:
+            return "拖 (\(String(format: "%.2f", point.x)),\(String(format: "%.2f", point.y)))→(\(String(format: "%.2f", point.endX ?? point.x)),\(String(format: "%.2f", point.endY ?? point.y)))"
+        case .waitElement:
+            return "等待元素出现"
+        }
+    }
+
+    /// 等待节点元素标签的双向绑定（按 index 读写数组）
+    private func elementLabelBinding(_ index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard sequence.points.indices.contains(index) else { return "" }
+                return sequence.points[index].elementLabel ?? ""
+            },
+            set: { newValue in
+                guard sequence.points.indices.contains(index) else { return }
+                sequence.points[index].elementLabel = newValue.isEmpty ? nil : newValue
+            }
+        )
+    }
+
     private func addAction(kind: SequencePoint.Kind) {
         let base = sequence.points.map(\.offsetMs).max() ?? 0
         var point = SequencePoint(kind: kind, x: 0.5, y: 0.5, offsetMs: base + 1000)
@@ -216,7 +314,18 @@ struct SequenceEditorView: View {
             point = SequencePoint(kind: .drag, x: 0.3, y: 0.6, offsetMs: base + 1000,
                                   endX: 0.3, endY: 0.4, durationMs: 400)
         }
+        if kind == .waitElement {
+            // 默认等待「设置」出现，超时 5s
+            point = SequencePoint(kind: .waitElement, x: 0.5, y: 0.5, offsetMs: base + 1000,
+                                  durationMs: 5000, elementLabel: "设置")
+        }
         sequence.points.append(point)
+    }
+
+    private func adjustTimeout(_ index: Int, delta: Int) {
+        guard sequence.points.indices.contains(index) else { return }
+        let current = sequence.points[index].durationMs ?? 5000
+        sequence.points[index].durationMs = max(500, current + delta)
     }
 
     private func removeAction(_ index: Int) {

@@ -34,6 +34,15 @@ final class Player: ObservableObject {
                         toRel: CGPoint(x: point.endX ?? point.x, y: point.endY ?? point.y),
                         durationMs: point.durationMs ?? 200
                     )
+                case .waitElement:
+                    // 条件等待：元素出现或超时（超时继续，不中断序列）
+                    if let label = point.elementLabel, !label.isEmpty {
+                        let appeared = await Injector.waitForElement(
+                            label: label,
+                            timeoutMs: point.durationMs ?? 5000
+                        )
+                        DebugLog.log("[Player] waitElement \"\(label)\" \(appeared ? "✓ 出现" : "✗ 超时")")
+                    }
                 }
                 self?.progressMs = point.offsetMs
                 DebugLog.log("[Player] replayed @\(point.offsetMs)ms kind=\(point.kind.rawValue)")
